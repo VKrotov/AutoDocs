@@ -39,6 +39,7 @@ import com.autodocs.app.data.entity.WorkItemCategory
 import com.autodocs.app.data.entity.displayName
 import com.autodocs.app.data.entity.total
 import com.autodocs.app.ui.components.GlassSurface
+import com.autodocs.app.ui.components.PhotoStrip
 import com.autodocs.app.ui.components.RoundGlassButton
 import com.autodocs.app.ui.components.ScreenHeader
 import com.autodocs.app.ui.components.SectionLabel
@@ -57,14 +58,16 @@ fun RecordDetailScreen(
     recordId: Long,
     onBack: () -> Unit,
     onEdit: (Long) -> Unit,
+    onOpenPhoto: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
     val viewModel: RecordDetailViewModel = viewModel(
         key = "record_detail_$recordId",
-        factory = RecordDetailViewModelFactory(recordId, app.serviceRepository)
+        factory = RecordDetailViewModelFactory(recordId, app.serviceRepository, app.photoRepository)
     )
     val state by viewModel.state.collectAsState()
+    val photos by viewModel.photos.collectAsState()
     var confirmDelete by remember { mutableStateOf(false) }
 
     val data = state.record
@@ -124,6 +127,12 @@ fun RecordDetailScreen(
             }
         }
 
+        if (photos.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+            SectionLabel("Фото й документи · ${photos.size}")
+            PhotoStrip(uris = photos.map { it.uri }, onOpen = onOpenPhoto)
+        }
+
         record.notes?.takeIf { it.isNotBlank() }?.let {
             Spacer(Modifier.height(20.dp))
             SectionLabel("Нотатки")
@@ -139,7 +148,7 @@ fun RecordDetailScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Видалити запис?") },
-            text = { Text("Запис від ${formatRecordDate(record.date)} і всі його позиції буде видалено без можливості відновлення.") },
+            text = { Text("Запис від ${formatRecordDate(record.date)}, усі його позиції та фото буде видалено без можливості відновлення.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false

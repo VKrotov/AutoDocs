@@ -23,6 +23,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.autodocs.app.AutoDocsApp
+import com.autodocs.app.data.entity.PhotoOwnerType
 import com.autodocs.app.data.notify.MaintenanceNotifier
 import com.autodocs.app.ui.screens.backup.BackupScreen
 import com.autodocs.app.ui.screens.car.ArchiveScreen
@@ -30,6 +31,8 @@ import com.autodocs.app.ui.screens.car.CarFormScreen
 import com.autodocs.app.ui.screens.home.HomeScreen
 import com.autodocs.app.ui.screens.journal.JournalScreen
 import com.autodocs.app.ui.screens.notify.NotificationSettingsScreen
+import com.autodocs.app.ui.screens.photos.PhotoViewerScreen
+import com.autodocs.app.ui.screens.photos.TechPassportScreen
 import com.autodocs.app.ui.screens.plan.BaselineSetupScreen
 import com.autodocs.app.ui.screens.plan.PlanScreen
 import com.autodocs.app.ui.screens.plan.RuleEditScreen
@@ -97,6 +100,7 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
                     onEditCar = { carId -> navController.navigate(Routes.carFormEdit(carId)) },
                     onOpenPlan = { openTab(Destination.PLAN) },
                     onOpenRule = { id -> navController.navigate(Routes.planRuleEdit(id)) },
+                    onOpenPassport = { carId -> navController.navigate(Routes.techPassport(carId)) },
                     modifier = tabModifier
                 )
             }
@@ -184,6 +188,9 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
                     recordId = recordId,
                     onBack = back,
                     onEdit = { id -> navController.navigate(Routes.recordFormEdit(id)) },
+                    onOpenPhoto = { index ->
+                        navController.navigate(Routes.photoViewer(PhotoOwnerType.SERVICE_RECORD.name, recordId, index))
+                    },
                     modifier = secondaryModifier
                 )
             }
@@ -206,6 +213,34 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
             }
             composable(Routes.PLAN_SETUP) {
                 BaselineSetupScreen(onDone = back, onBack = back, modifier = secondaryModifier)
+            }
+            composable(
+                route = Routes.PHOTO_VIEWER_PATTERN,
+                arguments = listOf(
+                    navArgument(Routes.OWNER_TYPE_ARG) { type = NavType.StringType },
+                    navArgument(Routes.OWNER_ID_ARG) { type = NavType.LongType },
+                    navArgument(Routes.START_ARG) { type = NavType.IntType }
+                )
+            ) { entry ->
+                val args = entry.arguments
+                PhotoViewerScreen(
+                    ownerType = PhotoOwnerType.valueOf(args?.getString(Routes.OWNER_TYPE_ARG) ?: PhotoOwnerType.SERVICE_RECORD.name),
+                    ownerId = args?.getLong(Routes.OWNER_ID_ARG) ?: 0L,
+                    startIndex = args?.getInt(Routes.START_ARG) ?: 0,
+                    onBack = back
+                )
+            }
+            composable(
+                route = Routes.TECH_PASSPORT_PATTERN,
+                arguments = listOf(navArgument(Routes.CAR_ID_ARG) { type = NavType.LongType })
+            ) { entry ->
+                val carId = entry.arguments?.getLong(Routes.CAR_ID_ARG) ?: 0L
+                TechPassportScreen(
+                    carId = carId,
+                    onBack = back,
+                    onOpenPhoto = { index -> navController.navigate(Routes.photoViewer(PhotoOwnerType.CAR.name, carId, index)) },
+                    modifier = secondaryModifier
+                )
             }
             composable(Routes.NOTIFY_SETTINGS) {
                 NotificationSettingsScreen(onBack = back, modifier = secondaryModifier)

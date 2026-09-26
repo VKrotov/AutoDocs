@@ -61,7 +61,7 @@ fun JournalScreen(
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
     val viewModel: JournalViewModel = viewModel(
-        factory = JournalViewModelFactory(app.carRepository, app.serviceRepository)
+        factory = JournalViewModelFactory(app.carRepository, app.serviceRepository, app.photoRepository)
     )
     val state by viewModel.state.collectAsState()
 
@@ -122,7 +122,7 @@ fun JournalScreen(
                         }
                     }
                     items(records, key = { it.record.id }) { record ->
-                        RecordCard(record = record, onClick = { onOpenRecord(record.record.id) })
+                        RecordCard(record = record, photoCount = state.photoCounts[record.record.id] ?: 0, onClick = { onOpenRecord(record.record.id) })
                     }
                 }
             }
@@ -131,7 +131,7 @@ fun JournalScreen(
 }
 
 @Composable
-private fun RecordCard(record: RecordWithItems, onClick: () -> Unit) {
+private fun RecordCard(record: RecordWithItems, photoCount: Int = 0, onClick: () -> Unit) {
     GlassSurface(
         modifier = Modifier
             .fillMaxWidth()
@@ -150,7 +150,8 @@ private fun RecordCard(record: RecordWithItems, onClick: () -> Unit) {
                 )
                 val meta = listOfNotNull(
                     "${formatKm(record.record.mileage)} км",
-                    record.record.stoName?.takeIf { it.isNotBlank() }
+                    record.record.stoName?.takeIf { it.isNotBlank() },
+                    if (photoCount > 0) "$photoCount фото" else null
                 ).joinToString(" · ")
                 Text(meta, style = MaterialTheme.typography.bodyMedium, fontSize = 13.sp, color = TextSecondary)
             }

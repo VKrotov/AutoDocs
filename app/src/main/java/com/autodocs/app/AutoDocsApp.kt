@@ -7,6 +7,7 @@ import com.autodocs.app.data.backup.BackupManager
 import com.autodocs.app.data.notify.MaintenanceNotifier
 import com.autodocs.app.data.notify.ReminderScheduler
 import com.autodocs.app.data.repository.CarRepository
+import com.autodocs.app.data.repository.PhotoRepository
 import com.autodocs.app.data.repository.PlanRepository
 import com.autodocs.app.data.repository.ServiceRepository
 import kotlinx.coroutines.CoroutineScope
@@ -25,7 +26,9 @@ class AutoDocsApp : Application() {
         CarRepository(database.carDao(), database.mileageEntryDao())
     }
 
-    val serviceRepository: ServiceRepository by lazy { ServiceRepository(database) }
+    val photoRepository: PhotoRepository by lazy { PhotoRepository(this, database) }
+
+    val serviceRepository: ServiceRepository by lazy { ServiceRepository(database, photoRepository) }
 
     val backupManager: BackupManager by lazy { BackupManager(this, database) }
 

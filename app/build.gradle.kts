@@ -24,8 +24,8 @@ android {
         applicationId = "com.autodocs.app"
         minSdk = 34
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.6.0"
+        versionCode = 7
+        versionName = "0.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -115,6 +115,10 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+
+    // Сканер документів ML Kit (етап 7): рамка, обрізка, вирівнювання, «скан»-фільтр. Без OCR.
+    // Модуль ставиться через Google Play Services, працює офлайн.
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
 
     // WorkManager (нагадування — під'єднаємо на етапі 6)
     implementation("androidx.work:work-runtime-ktx:2.9.1")

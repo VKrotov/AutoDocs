@@ -64,6 +64,7 @@ import com.autodocs.app.ui.components.PillText
 import com.autodocs.app.ui.components.ScreenHeader
 import com.autodocs.app.ui.components.SectionLabel
 import com.autodocs.app.ui.components.SuggestTextField
+import com.autodocs.app.ui.components.rememberPhotoSources
 import com.autodocs.app.ui.components.autoDocsFieldColors
 import com.autodocs.app.ui.theme.Accent
 import com.autodocs.app.ui.theme.AutoDocsDimens
@@ -88,12 +89,16 @@ fun RecordFormScreen(
     val app = LocalContext.current.applicationContext as AutoDocsApp
     val viewModel: RecordFormViewModel = viewModel(
         key = "record_form_${recordIdToEdit ?: "new"}",
-        factory = RecordFormViewModelFactory(app.carRepository, app.serviceRepository)
+        factory = RecordFormViewModelFactory(app, app.carRepository, app.serviceRepository, app.photoRepository)
     )
     val state by viewModel.state.collectAsState()
     val workTypes by viewModel.workTypes.collectAsState()
     val stoNames by viewModel.stoNames.collectAsState()
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    val photoSources = rememberPhotoSources(
+        onPicked = { uris, isScan -> viewModel.onPhotosPicked(uris, isScan) },
+        onError = viewModel::onPhotoError
+    )
 
     LaunchedEffect(recordIdToEdit) { viewModel.init(recordIdToEdit) }
     LaunchedEffect(state.isSaved, state.noActiveCar) {
@@ -198,6 +203,17 @@ fun RecordFormScreen(
                     color = TextPrimary
                 )
             }
+        }
+
+        item {
+            RecordPhotosSection(
+                photos = state.photos.map { it.uri },
+                slotsLeft = state.photoSlotsLeft,
+                importing = state.isImportingPhotos,
+                message = state.photoMessage,
+                sources = photoSources,
+                onRemove = viewModel::removePhoto
+            )
         }
 
         item { SectionLabel("Нотатки", Modifier.padding(top = 8.dp)) }

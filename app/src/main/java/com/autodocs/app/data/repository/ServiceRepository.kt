@@ -24,7 +24,10 @@ data class ItemInput(
  * вона вибрана з довідника. Так запис читається без join-ів і не "ламається",
  * якщо пункт довідника потім перейменують чи видалять.
  */
-class ServiceRepository(private val db: AppDatabase) {
+class ServiceRepository(
+    private val db: AppDatabase,
+    private val photos: PhotoRepository? = null
+) {
     private val recordDao = db.serviceRecordDao()
     private val itemDao = db.serviceRecordItemDao()
     private val workTypeDao = db.workTypeDao()
@@ -93,7 +96,11 @@ class ServiceRepository(private val db: AppDatabase) {
         id
     }
 
-    suspend fun deleteRecord(id: Long) = recordDao.deleteById(id)
+    /** Видаляє запис разом із його фото (рядки + файли). */
+    suspend fun deleteRecord(id: Long) {
+        photos?.deleteAllFor(com.autodocs.app.data.entity.PhotoOwnerType.SERVICE_RECORD, id)
+        recordDao.deleteById(id)
+    }
 
     // ---- Довідник ----
 

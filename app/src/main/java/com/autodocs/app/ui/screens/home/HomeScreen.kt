@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Inventory2
@@ -90,12 +91,14 @@ fun HomeScreen(
     onEditCar: (Long) -> Unit,
     onOpenPlan: () -> Unit,
     onOpenRule: (Long) -> Unit,
+    onOpenPassport: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
-    val viewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(app.carRepository, app.planRepository))
+    val viewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(app.carRepository, app.planRepository, app.photoRepository))
     val activeCar by viewModel.activeCar.collectAsState()
     val plan by viewModel.plan.collectAsState()
+    val passportSides by viewModel.passportSides.collectAsState()
 
     val car = activeCar
     if (car == null) {
@@ -106,6 +109,8 @@ fun HomeScreen(
             onEdit = { onEditCar(car.id) },
             onArchive = { viewModel.archiveActiveCar(car.id) },
             onUpdateMileage = { viewModel.updateMileage(car.id, it) },
+            passportSides = passportSides,
+            onOpenPassport = { onOpenPassport(car.id) },
             upcoming = {
                 UpcomingBlock(plan = plan, onOpenPlan = onOpenPlan, onOpenRule = onOpenRule)
             },
@@ -161,6 +166,8 @@ private fun CarHome(
     onArchive: () -> Unit,
     onUpdateMileage: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    passportSides: Int = 0,
+    onOpenPassport: () -> Unit = {},
     upcoming: @Composable () -> Unit = {}
 ) {
     var showArchiveConfirm by remember { mutableStateOf(false) }
@@ -241,6 +248,26 @@ private fun CarHome(
                     GlassPillButton(onClick = { showMileageDialog = true }) {
                         PillText(if (car.mileage > 0) "Оновити" else "Вказати")
                     }
+                }
+
+                // F26: техпаспорт — окремий рядок-посилання.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onOpenPassport)
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.Badge, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Техпаспорт", style = MaterialTheme.typography.bodyMedium, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Text(
+                        when (passportSides) { 0 -> "Додати фото"; 1 -> "1 з 2 сторін"; else -> "2 сторони" },
+                        color = if (passportSides == 2) TextSecondary else LinkColor,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (passportSides == 2) FontWeight.Normal else FontWeight.SemiBold
+                    )
                 }
 
                 val missing = car.missingFields()

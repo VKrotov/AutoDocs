@@ -37,6 +37,15 @@ object Routes {
     const val PLAN_SETUP = "plan_setup"
     const val NOTIFY_SETTINGS = "notify_settings"
 
+    const val OWNER_TYPE_ARG = "ownerType"
+    const val OWNER_ID_ARG = "ownerId"
+    const val START_ARG = "start"
+    const val PHOTO_VIEWER_PATTERN = "photos/{$OWNER_TYPE_ARG}/{$OWNER_ID_ARG}/{$START_ARG}"
+    const val TECH_PASSPORT_PATTERN = "passport/{$CAR_ID_ARG}"
+
+    fun photoViewer(ownerType: String, ownerId: Long, start: Int) = "photos/$ownerType/$ownerId/$start"
+    fun techPassport(carId: Long) = "passport/$carId"
+
     fun planRuleEdit(ruleId: Long) = "plan_rule/edit/$ruleId"
 
     fun carFormEdit(carId: Long) = "car_form/edit/$carId"

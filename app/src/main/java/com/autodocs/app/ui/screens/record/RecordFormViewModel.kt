@@ -1,12 +1,19 @@
 package com.autodocs.app.ui.screens.record
 
+import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.autodocs.app.data.PhotoStorage
+import com.autodocs.app.data.entity.PhotoKind
+import com.autodocs.app.data.entity.PhotoOwnerType
 import com.autodocs.app.data.entity.WorkItemCategory
 import com.autodocs.app.data.entity.WorkType
 import com.autodocs.app.data.repository.CarRepository
 import com.autodocs.app.data.repository.ItemInput
+import com.autodocs.app.data.repository.PhotoRef
+import com.autodocs.app.data.repository.PhotoRepository
 import com.autodocs.app.data.repository.ServiceRepository
 import com.autodocs.app.ui.util.parseMoney
 import com.autodocs.app.ui.util.todayUtcMillis
@@ -40,8 +47,14 @@ data class RecordFormState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val isSaved: Boolean = false,
-    val noActiveCar: Boolean = false
+    val noActiveCar: Boolean = false,
+    /** F05/F25: фото й скани запису (file:// у сховищі застосунку), до 5 шт. */
+    val photos: List<PhotoRef> = emptyList(),
+    val isImportingPhotos: Boolean = false,
+    val photoMessage: String? = null
 ) {
+    val photoSlotsLeft: Int get() = PhotoRepository.MAX_PER_RECORD - photos.size
+
     val total: Double get() = items.sumOf { parseMoney(it.priceText) ?: 0.0 }
 
     val filledItems: List<ItemDraft> get() = items.filter { it.name.isNotBlank() }
@@ -59,9 +72,14 @@ data class RecordFormState(
 private val PRICE_REGEX = Regex("^\\d{0,7}([.,]\\d{0,2})?$")
 
 class RecordFormViewModel(
+    private val app: Application,
     private val carRepository: CarRepository,
-    private val serviceRepository: ServiceRepository
+    private val serviceRepository: ServiceRepository,
+    private val photoRepository: PhotoRepository
 ) : ViewModel() {
+
+    /** Фото, скопійовані в застосунок у цій формі, але ще не збережені в БД. */
+    private val pendingFiles = mutableSetOf<String>()
 
     private val _state = MutableStateFlow(RecordFormState())
     val state: StateFlow<RecordFormState> = _state.asStateFlow()
@@ -128,6 +146,8 @@ class RecordFormViewModel(
                                 priceText = if (item.price > 0) formatPriceForEdit(item.price) else ""
                             )
                         }.ifEmpty { listOf(newDraft(WorkItemCategory.ROBOTA)) },
+                        photos = photoRepository.getFor(PhotoOwnerType.SERVICE_RECORD, data.record.id)
+                            .map { p -> PhotoRef(p.uri, p.kind) },
                         isLoading = false
                     )
                 }
@@ -178,7 +198,7 @@ class RecordFormViewModel(
         val mileage = s.mileageText.toIntOrNull() ?: return
         viewModelScope.launch {
             _state.update { it.copy(isSaving = true) }
-            serviceRepository.saveRecord(
+            val id = serviceRepository.saveRecord(
                 recordId = s.recordId,
                 carId = carId,
                 date = s.date,
@@ -194,16 +214,70 @@ class RecordFormViewModel(
                     )
                 }
             )
+            photoRepository.replaceFor(PhotoOwnerType.SERVICE_RECORD, id, _state.value.photos)
+            pendingFiles.clear()
             _state.update { it.copy(isSaving = false, isSaved = true) }
         }
+    }
+
+    // ---- Фото ----
+
+    /** Скопіювати вибрані/зняті фото в застосунок (не більше вільних місць). */
+    fun onPhotosPicked(uris: List<Uri>, isScan: Boolean) {
+        val free = _state.value.photoSlotsLeft
+        if (free <= 0) return
+        val take = uris.take(free)
+        viewModelScope.launch {
+            _state.update { it.copy(isImportingPhotos = true, photoMessage = null) }
+            val kind = if (isScan) PhotoKind.SCAN else PhotoKind.RECORD_PHOTO
+            val imported = take.mapNotNull { uri ->
+                PhotoStorage.importImage(
+                    app, uri,
+                    prefix = if (isScan) "scan" else "rec",
+                    maxSide = if (isScan) PhotoStorage.DOCUMENT_MAX_SIDE else 1600
+                )
+            }
+            pendingFiles += imported
+            val skipped = uris.size - take.size
+            _state.update {
+                it.copy(
+                    photos = it.photos + imported.map { u -> PhotoRef(u, kind) },
+                    isImportingPhotos = false,
+                    photoMessage = when {
+                        skipped > 0 -> "Додано ${imported.size}: не більше ${PhotoRepository.MAX_PER_RECORD} фото на запис"
+                        imported.size < take.size -> "Не всі фото вдалося відкрити"
+                        else -> null
+                    }
+                )
+            }
+        }
+    }
+
+    fun onPhotoError(message: String) = _state.update { it.copy(photoMessage = message) }
+
+    fun removePhoto(uri: String) {
+        if (uri in pendingFiles) {
+            pendingFiles -= uri
+            photoRepository.discardFile(uri)
+        }
+        // Уже збережені фото видаляються з диска лише при збереженні запису.
+        _state.update { it.copy(photos = it.photos.filterNot { p -> p.uri == uri }) }
+    }
+
+    override fun onCleared() {
+        // Форму закрили без збереження — прибираємо скопійовані, але не збережені файли.
+        pendingFiles.forEach { photoRepository.discardFile(it) }
+        pendingFiles.clear()
     }
 }
 
 class RecordFormViewModelFactory(
+    private val app: Application,
     private val carRepository: CarRepository,
-    private val serviceRepository: ServiceRepository
+    private val serviceRepository: ServiceRepository,
+    private val photoRepository: PhotoRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        RecordFormViewModel(carRepository, serviceRepository) as T
+        RecordFormViewModel(app, carRepository, serviceRepository, photoRepository) as T
 }
