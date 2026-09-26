@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoDocs</string>
+
+    <!-- Нижнє меню -->
+    <string name="nav_home">Головна</string>
+    <string name="nav_journal">Журнал</string>
+    <string name="nav_plan">План ТО</string>
+    <string name="nav_settings">Налаштування</string>
+    <string name="nav_add">Додати</string>
+
+    <!-- Налаштування (F13, базовий екран) -->
+    <string name="settings_title">Налаштування</string>
+    <string name="settings_section_car">Автомобіль</string>
+    <string name="settings_active_car">Активний автомобіль і архів</string>
+    <string name="settings_section_data">Дані</string>
+    <string name="settings_backup">Резервна копія (експорт/імпорт)</string>
+    <string name="settings_backup_hint">З\'явиться на етапі 4</string>
+    <string name="settings_section_notifications">Нагадування</string>
+    <string name="settings_notifications">Сповіщення про ТО</string>
+    <string name="settings_notifications_hint">З\'явиться на етапі 6</string>
+    <string name="settings_section_about">Про застосунок</string>
+    <string name="settings_version">Версія</string>
+
+    <!-- Заглушки екранів, яких ще немає -->
+    <string name="placeholder_coming_soon">Цей розділ з\'явиться на наступних етапах</string>
+</resources>
