@@ -1,8 +1,8 @@
 package com.autodocs.app.ui.screens.home
 
-import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,22 +14,27 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,40 +43,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.autodocs.app.AutoDocsApp
 import com.autodocs.app.data.entity.Car
+import com.autodocs.app.data.entity.FuelType
+import com.autodocs.app.data.entity.TransmissionType
+import com.autodocs.app.ui.components.CarPhoto
+import com.autodocs.app.ui.components.GlassPillButton
 import com.autodocs.app.ui.components.GlassSurface
+import com.autodocs.app.ui.components.PillText
+import com.autodocs.app.ui.components.RoundGlassButton
+import com.autodocs.app.ui.components.ScreenHeader
+import com.autodocs.app.ui.components.autoDocsFieldColors
 import com.autodocs.app.ui.theme.Accent
 import com.autodocs.app.ui.theme.AutoDocsDimens
+import com.autodocs.app.ui.theme.LinkColor
 import com.autodocs.app.ui.theme.OnAccent
 import com.autodocs.app.ui.theme.StatusOverdue
 import com.autodocs.app.ui.theme.TextPrimary
 import com.autodocs.app.ui.theme.TextSecondary
 import com.autodocs.app.ui.theme.VinTextStyle
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-private fun com.autodocs.app.data.entity.FuelType.label(): String = when (this) {
-    com.autodocs.app.data.entity.FuelType.PETROL -> "Бензин"
-    com.autodocs.app.data.entity.FuelType.DIESEL -> "Дизель"
-    com.autodocs.app.data.entity.FuelType.GAS -> "Газ"
-    com.autodocs.app.data.entity.FuelType.HYBRID -> "Гібрид"
-    com.autodocs.app.data.entity.FuelType.ELECTRIC -> "Електро"
-}
-
-private fun com.autodocs.app.data.entity.TransmissionType.label(): String = when (this) {
-    com.autodocs.app.data.entity.TransmissionType.MANUAL -> "Механіка"
-    com.autodocs.app.data.entity.TransmissionType.AUTOMATIC -> "Автомат"
-    com.autodocs.app.data.entity.TransmissionType.ROBOT -> "Робот"
-    com.autodocs.app.data.entity.TransmissionType.VARIATOR -> "Варіатор"
-}
+import com.autodocs.app.ui.util.formatKm
+import com.autodocs.app.ui.util.formatTodayHeader
+import com.autodocs.app.ui.util.formatUpdatedAgo
+import com.autodocs.app.ui.util.label
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
@@ -101,11 +109,7 @@ fun HomeScreen(
 private fun EmptyState(onAddCar: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "Немає жодного авто",
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary
-            )
+            Text("Немає жодного авто", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
             Text(
                 "Додай своє перше авто, щоб почати вести історію ремонтів і ТО",
                 style = MaterialTheme.typography.bodyMedium,
@@ -117,12 +121,29 @@ private fun EmptyState(onAddCar: () -> Unit, modifier: Modifier = Modifier) {
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = OnAccent)
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null)
-                Spacer(Modifier.padding(4.dp))
+                Spacer(Modifier.width(8.dp))
                 Text("Додати авто")
             }
         }
     }
 }
+
+/** Що з необов'язкових даних авто ще не заповнено — показуємо підказку «Доповнити». */
+private fun Car.missingFields(): List<String> = buildList {
+    if (engine.isBlank()) add("двигун")
+    if (fuelType == FuelType.UNKNOWN) add("паливо")
+    if (transmissionType == TransmissionType.UNKNOWN) add("КПП")
+    if (licensePlate.isBlank()) add("номер")
+    if (vin.isBlank()) add("VIN")
+    if (mileage <= 0) add("пробіг")
+    if (photoUri == null) add("фото")
+}
+
+private fun Car.specLine(): String = listOfNotNull(
+    engine.takeIf { it.isNotBlank() },
+    fuelType.takeIf { it != FuelType.UNKNOWN }?.label()?.lowercase(),
+    transmissionType.takeIf { it != TransmissionType.UNKNOWN }?.label()?.lowercase()
+).joinToString(" · ")
 
 @Composable
 private fun CarHome(
@@ -135,107 +156,106 @@ private fun CarHome(
     var showArchiveConfirm by remember { mutableStateOf(false) }
     var showMileageDialog by remember { mutableStateOf(false) }
     var vinExpanded by remember { mutableStateOf(false) }
-    var justCopied by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
-    val dateFormat = remember { SimpleDateFormat("d MMMM", Locale("uk")) }
 
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = AutoDocsDimens.ScreenPadding)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = AutoDocsDimens.ScreenPadding, bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = AutoDocsDimens.ScreenPadding)
+    ) {
+        ScreenHeader(
+            title = car.name,
+            overline = formatTodayHeader()
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    dateFormat.format(Date()),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TextSecondary
-                )
-                Text(
-                    car.name,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = TextPrimary
-                )
-            }
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Filled.Edit, contentDescription = "Редагувати", tint = TextSecondary)
-            }
-            IconButton(onClick = { showArchiveConfirm = true }) {
-                Icon(Icons.Filled.Archive, contentDescription = "Архівувати", tint = TextSecondary)
-            }
+            RoundGlassButton(Icons.Outlined.Edit, "Редагувати авто", onEdit)
+            RoundGlassButton(Icons.Outlined.Inventory2, "Архівувати авто", { showArchiveConfirm = true })
         }
 
-        GlassSurface(modifier = Modifier.fillMaxWidth()) {
-            if (car.photoUri != null) {
-                val context = LocalContext.current
-                val bitmap = remember(car.photoUri) {
-                    runCatching {
-                        context.contentResolver.openInputStream(android.net.Uri.parse(car.photoUri))?.use {
-                            BitmapFactory.decodeStream(it)
-                        }
-                    }.getOrNull()
-                }
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(160.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                    )
-                    Spacer(Modifier.padding(top = 6.dp))
-                }
-            }
-
-            Text("${car.make} ${car.model}", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-            Text(
-                "${car.engine} · ${car.fuelType.label()} · ${car.transmissionType.label()}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary
-            )
-
-            Spacer(Modifier.padding(top = 10.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PlateChip(car.licensePlate)
-            }
-
-            Spacer(Modifier.padding(top = 8.dp))
-
-            Column(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { vinExpanded = !vinExpanded }
-                    .padding(vertical = 4.dp)
-            ) {
-                Text("VIN", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                if (vinExpanded) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(car.vin, style = VinTextStyle, color = TextPrimary, modifier = Modifier.weight(1f))
-                        TextButton(onClick = {
-                            clipboard.setText(AnnotatedString(car.vin))
-                            justCopied = true
-                        }) {
-                            Text(if (justCopied) "Скопійовано" else "Копіювати", color = Accent)
+        GlassSurface(modifier = Modifier.fillMaxWidth(), contentPadding = 18.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Рядок 1: марка/модель + характеристики зліва; номер і пігулка VIN справа.
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("${car.make} ${car.model}", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                        val spec = car.specLine()
+                        if (spec.isNotEmpty()) {
+                            Text(spec, style = MaterialTheme.typography.bodyMedium, fontSize = 13.sp, color = TextSecondary)
                         }
                     }
-                } else {
-                    Text(car.vin.take(4) + "···", style = VinTextStyle, color = TextSecondary)
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (car.licensePlate.isNotBlank()) PlateChip(car.licensePlate)
+                        if (car.vin.isNotBlank()) {
+                            VinPill(expanded = vinExpanded, onClick = { vinExpanded = !vinExpanded })
+                        }
+                    }
                 }
-            }
 
-            Spacer(Modifier.padding(top = 14.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Пробіг", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                    Text("${car.mileage} км", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+                AnimatedVisibility(visible = vinExpanded && car.vin.isNotBlank()) {
+                    VinRow(car.vin)
                 }
-                TextButton(onClick = { showMileageDialog = true }) {
-                    Text("Оновити", color = Accent)
+
+                if (car.photoUri != null) {
+                    CarPhoto(
+                        uri = car.photoUri,
+                        modifier = Modifier.fillMaxWidth().height(170.dp)
+                    )
+                }
+
+                // Пробіг
+                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        val hasMileage = car.mileage > 0
+                        Text(
+                            if (hasMileage) "Пробіг · ${formatUpdatedAgo(car.mileageUpdatedAt)}" else "Пробіг не вказано",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontSize = 13.sp,
+                            color = TextSecondary
+                        )
+                        Text(
+                            buildAnnotatedString {
+                                if (hasMileage) {
+                                    append(formatKm(car.mileage))
+                                    withStyle(SpanStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, color = TextSecondary)) {
+                                        append(" км")
+                                    }
+                                } else {
+                                    append("—")
+                                }
+                            },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+                    GlassPillButton(onClick = { showMileageDialog = true }) {
+                        PillText(if (car.mileage > 0) "Оновити" else "Вказати")
+                    }
+                }
+
+                val missing = car.missingFields()
+                if (missing.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClick = onEdit)
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Не заповнено: ${missing.joinToString(", ")}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontSize = 13.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text("Доповнити", color = LinkColor, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
+
+        Spacer(Modifier.height(24.dp))
     }
 
     if (showArchiveConfirm) {
@@ -255,16 +275,18 @@ private fun CarHome(
     }
 
     if (showMileageDialog) {
-        var text by remember { mutableStateOf(car.mileage.toString()) }
+        var text by remember { mutableStateOf(if (car.mileage > 0) car.mileage.toString() else "") }
         AlertDialog(
             onDismissRequest = { showMileageDialog = false },
-            title = { Text("Оновити пробіг") },
+            title = { Text(if (car.mileage > 0) "Оновити пробіг" else "Вказати пробіг") },
             text = {
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { if (it.all { c -> c.isDigit() }) text = it },
+                    onValueChange = { if (it.length <= 7 && it.all { c -> c.isDigit() }) text = it },
                     label = { Text("Пробіг, км") },
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = autoDocsFieldColors()
                 )
             },
             confirmButton = {
@@ -282,12 +304,90 @@ private fun CarHome(
 
 @Composable
 private fun PlateChip(plate: String) {
+    val shape = RoundedCornerShape(8.dp)
     Box(
         modifier = Modifier
-            .clip(CircleShape)
-            .background(Accent.copy(alpha = 0.15f))
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(shape)
+            .background(Color(0x12FFFFFF))
+            .border(1.dp, Color(0x1AFFFFFF), shape)
+            .padding(horizontal = 8.dp, vertical = 5.dp)
     ) {
-        Text(plate, style = MaterialTheme.typography.labelMedium, color = Accent)
+        Text(
+            plate,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.6.sp,
+            color = TextPrimary
+        )
+    }
+}
+
+/** Пігулка «VIN ˅»: сам VIN не показується, доки її не натиснули. */
+@Composable
+private fun VinPill(expanded: Boolean, onClick: () -> Unit) {
+    GlassPillButton(onClick = onClick, highlighted = expanded, height = 32) {
+        Text(
+            "VIN",
+            color = LinkColor,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.6.sp
+        )
+        Icon(
+            Icons.Rounded.KeyboardArrowDown,
+            contentDescription = if (expanded) "Сховати VIN" else "Показати VIN",
+            tint = LinkColor,
+            modifier = Modifier.size(16.dp).rotate(if (expanded) 180f else 0f)
+        )
+    }
+}
+
+@Composable
+private fun VinRow(vin: String) {
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1600)
+            copied = false
+        }
+    }
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Accent.copy(alpha = 0.08f))
+            .border(1.dp, Accent.copy(alpha = 0.24f), shape)
+            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("VIN-код", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            Text(vin, style = VinTextStyle, letterSpacing = 0.8.sp, color = TextPrimary)
+        }
+        Row(
+            modifier = Modifier
+                .height(36.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Accent)
+                .clickable {
+                    clipboard.setText(AnnotatedString(vin))
+                    copied = true
+                }
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(Icons.Outlined.ContentCopy, contentDescription = null, tint = OnAccent, modifier = Modifier.size(16.dp))
+            Text(
+                if (copied) "Скопійовано" else "Копіювати",
+                color = OnAccent,
+                style = MaterialTheme.typography.labelMedium,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }

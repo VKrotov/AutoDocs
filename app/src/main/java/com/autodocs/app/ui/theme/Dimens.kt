@@ -9,6 +9,6 @@ object AutoDocsDimens {
     val TileRadius = 9.dp
     val MenuCapsuleRadius = 34.dp
 
-    val ScreenPadding = 20.dp
+    val ScreenPadding = 16.dp
     val SectionSpacing = 16.dp
 }

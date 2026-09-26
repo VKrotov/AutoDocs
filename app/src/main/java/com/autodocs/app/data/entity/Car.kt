@@ -3,12 +3,15 @@ package com.autodocs.app.data.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-enum class FuelType { PETROL, DIESEL, GAS, HYBRID, ELECTRIC }
+/** UNKNOWN — «не вказано»: авто можна зберегти з неповними даними й доповнити пізніше. */
+enum class FuelType { UNKNOWN, PETROL, DIESEL, GAS, HYBRID, ELECTRIC }
 
-enum class TransmissionType { MANUAL, AUTOMATIC, ROBOT, VARIATOR }
+enum class TransmissionType { UNKNOWN, MANUAL, AUTOMATIC, ROBOT, VARIATOR }
 
 /**
- * Автомобіль користувача. Активний лише один [isArchived] == false одночасно
+ * Автомобіль користувача. Обов'язкові лише [name], [make], [model]; решта може
+ * бути порожньою ("" / UNKNOWN / 0 км = пробіг не вказано).
+ * Активний лише один [isArchived] == false одночасно
  * (правило контролюється на рівні репозиторію/UI, не в БД).
  */
 @Entity(tableName = "cars")

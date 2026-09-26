@@ -1,8 +1,11 @@
 package com.autodocs.app.ui.screens.car
 
+import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.autodocs.app.data.PhotoStorage
 import com.autodocs.app.data.entity.Car
 import com.autodocs.app.data.entity.FuelType
 import com.autodocs.app.data.entity.TransmissionType
@@ -10,6 +13,7 @@ import com.autodocs.app.data.repository.CarRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class CarFormState(
@@ -18,30 +22,41 @@ data class CarFormState(
     val make: String = "",
     val model: String = "",
     val engine: String = "",
-    val fuelType: FuelType = FuelType.PETROL,
-    val transmissionType: TransmissionType = TransmissionType.MANUAL,
+    val fuelType: FuelType = FuelType.UNKNOWN,
+    val transmissionType: TransmissionType = TransmissionType.UNKNOWN,
     val licensePlate: String = "",
     val vin: String = "",
     val mileageText: String = "",
     val photoUri: String? = null,
+    val isPhotoImporting: Boolean = false,
     val isLoading: Boolean = false,
     val isSaved: Boolean = false
 ) {
+    /** Обов'язкові лише назва, марка й модель — решту можна дописати потім. */
     val isValid: Boolean
-        get() = name.isNotBlank() && make.isNotBlank() && model.isNotBlank() &&
-            licensePlate.isNotBlank() && vin.isNotBlank() && mileageText.toIntOrNull() != null
+        get() = name.isNotBlank() && make.isNotBlank() && model.isNotBlank()
 }
 
-class CarFormViewModel(private val repository: CarRepository) : ViewModel() {
+class CarFormViewModel(
+    private val app: Application,
+    private val repository: CarRepository
+) : ViewModel() {
 
     private val _state = MutableStateFlow(CarFormState())
     val state: StateFlow<CarFormState> = _state.asStateFlow()
 
+    /** Фото, яке було в авто до редагування (щоб прибрати старий файл після заміни). */
+    private var originalPhotoUri: String? = null
+    private var loadedCarId: Long? = null
+
     fun loadForEdit(carId: Long) {
+        if (loadedCarId == carId) return
+        loadedCarId = carId
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true)
+            _state.update { it.copy(isLoading = true) }
             val car = repository.getCar(carId)
             if (car != null) {
+                originalPhotoUri = car.photoUri
                 _state.value = CarFormState(
                     carId = car.id,
                     name = car.name,
@@ -52,33 +67,54 @@ class CarFormViewModel(private val repository: CarRepository) : ViewModel() {
                     transmissionType = car.transmissionType,
                     licensePlate = car.licensePlate,
                     vin = car.vin,
-                    mileageText = car.mileage.toString(),
+                    mileageText = if (car.mileage > 0) car.mileage.toString() else "",
                     photoUri = car.photoUri
                 )
             } else {
-                _state.value = _state.value.copy(isLoading = false)
+                _state.update { it.copy(isLoading = false) }
             }
         }
     }
 
-    fun onNameChange(value: String) { _state.value = _state.value.copy(name = value) }
-    fun onMakeChange(value: String) { _state.value = _state.value.copy(make = value) }
-    fun onModelChange(value: String) { _state.value = _state.value.copy(model = value) }
-    fun onEngineChange(value: String) { _state.value = _state.value.copy(engine = value) }
-    fun onFuelTypeChange(value: FuelType) { _state.value = _state.value.copy(fuelType = value) }
-    fun onTransmissionTypeChange(value: TransmissionType) { _state.value = _state.value.copy(transmissionType = value) }
-    fun onLicensePlateChange(value: String) { _state.value = _state.value.copy(licensePlate = value.uppercase()) }
-    fun onVinChange(value: String) { _state.value = _state.value.copy(vin = value.uppercase()) }
+    fun onNameChange(value: String) = _state.update { it.copy(name = value) }
+    fun onMakeChange(value: String) = _state.update { it.copy(make = value) }
+    fun onModelChange(value: String) = _state.update { it.copy(model = value) }
+    fun onEngineChange(value: String) = _state.update { it.copy(engine = value) }
+    fun onFuelTypeChange(value: FuelType) = _state.update { it.copy(fuelType = value) }
+    fun onTransmissionTypeChange(value: TransmissionType) = _state.update { it.copy(transmissionType = value) }
+    fun onLicensePlateChange(value: String) = _state.update { it.copy(licensePlate = value.uppercase()) }
+    fun onVinChange(value: String) = _state.update { it.copy(vin = value.uppercase().filter { c -> !c.isWhitespace() }) }
     fun onMileageChange(value: String) {
-        if (value.all { it.isDigit() }) _state.value = _state.value.copy(mileageText = value)
+        if (value.length <= 7 && value.all { it.isDigit() }) _state.update { it.copy(mileageText = value) }
     }
-    fun onPhotoPicked(uri: String?) { _state.value = _state.value.copy(photoUri = uri) }
+
+    /** Копіюємо вибране фото у сховище застосунку (зменшене), а не зберігаємо посилання на галерею. */
+    fun onPhotoPicked(uri: Uri) {
+        viewModelScope.launch {
+            _state.update { it.copy(isPhotoImporting = true) }
+            val stored = PhotoStorage.importImage(app, uri, "car")
+            val previous = _state.value.photoUri
+            if (stored != null) {
+                // попередньо вибране, але ще не збережене фото більше не потрібне
+                if (previous != null && previous != originalPhotoUri) PhotoStorage.deleteIfOwned(app, previous)
+                _state.update { it.copy(photoUri = stored, isPhotoImporting = false) }
+            } else {
+                _state.update { it.copy(isPhotoImporting = false) }
+            }
+        }
+    }
+
+    fun onPhotoRemoved() {
+        val previous = _state.value.photoUri
+        if (previous != null && previous != originalPhotoUri) PhotoStorage.deleteIfOwned(app, previous)
+        _state.update { it.copy(photoUri = null) }
+    }
 
     fun save() {
         val s = _state.value
-        if (!s.isValid) return
+        if (!s.isValid || s.isLoading) return
         viewModelScope.launch {
-            _state.value = s.copy(isLoading = true)
+            _state.update { it.copy(isLoading = true) }
             val mileage = s.mileageText.toIntOrNull() ?: 0
             if (s.carId == null) {
                 repository.addCar(
@@ -111,14 +147,24 @@ class CarFormViewModel(private val repository: CarRepository) : ViewModel() {
                             photoUri = s.photoUri
                         )
                     )
+                    // Пробіг змінюємо через репозиторій — так він потрапляє і в історію пробігу.
+                    if (mileage > 0 && mileage != existing.mileage) {
+                        repository.updateMileage(existing.id, mileage)
+                    }
+                    if (originalPhotoUri != null && originalPhotoUri != s.photoUri) {
+                        PhotoStorage.deleteIfOwned(app, originalPhotoUri)
+                    }
                 }
             }
-            _state.value = _state.value.copy(isLoading = false, isSaved = true)
+            _state.update { it.copy(isLoading = false, isSaved = true) }
         }
     }
 }
 
-class CarFormViewModelFactory(private val repository: CarRepository) : ViewModelProvider.Factory {
+class CarFormViewModelFactory(
+    private val app: Application,
+    private val repository: CarRepository
+) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T = CarFormViewModel(repository) as T
+    override fun <T : ViewModel> create(modelClass: Class<T>): T = CarFormViewModel(app, repository) as T
 }

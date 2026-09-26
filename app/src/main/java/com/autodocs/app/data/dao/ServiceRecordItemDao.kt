@@ -24,4 +24,7 @@ interface ServiceRecordItemDao {
 
     @Delete
     suspend fun delete(item: ServiceRecordItem)
+
+    @Query("DELETE FROM service_record_items WHERE recordId = :recordId")
+    suspend fun deleteForRecord(recordId: Long)
 }

@@ -31,19 +31,14 @@ import java.util.Locale
 
 /** F01: список архівних авто (перегляд, без відновлення на цьому етапі). */
 @Composable
-fun ArchiveScreen(modifier: Modifier = Modifier) {
+fun ArchiveScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
     val viewModel: ArchiveViewModel = viewModel(factory = ArchiveViewModelFactory(app.carRepository))
     val archivedCars by viewModel.archivedCars.collectAsState()
     val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
 
     Column(modifier = modifier.fillMaxSize().padding(horizontal = AutoDocsDimens.ScreenPadding)) {
-        Text(
-            text = "Архів авто",
-            style = MaterialTheme.typography.headlineMedium,
-            color = TextPrimary,
-            modifier = Modifier.padding(vertical = AutoDocsDimens.ScreenPadding)
-        )
+        com.autodocs.app.ui.components.ScreenHeader(title = "Архів авто", onBack = onBack)
 
         if (archivedCars.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

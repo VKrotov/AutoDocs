@@ -1,14 +1,18 @@
 package com.autodocs.app.ui.navigation
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,86 +20,148 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.autodocs.app.AutoDocsApp
 import com.autodocs.app.ui.screens.car.ArchiveScreen
 import com.autodocs.app.ui.screens.car.CarFormScreen
 import com.autodocs.app.ui.screens.home.HomeScreen
 import com.autodocs.app.ui.screens.journal.JournalScreen
 import com.autodocs.app.ui.screens.plan.PlanScreen
+import com.autodocs.app.ui.screens.record.RecordDetailScreen
+import com.autodocs.app.ui.screens.record.RecordFormScreen
 import com.autodocs.app.ui.screens.settings.SettingsScreen
+import com.autodocs.app.ui.screens.worktypes.WorkTypesScreen
 
 @Composable
 fun AutoDocsNavHost() {
+    val app = LocalContext.current.applicationContext as AutoDocsApp
+    val activeCar by app.carRepository.observeActiveCar().collectAsState(initial = null)
+
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: Destination.HOME.route
-    val currentDestination = Destination.entries.firstOrNull { it.route == currentRoute } ?: Destination.HOME
+    val currentDestination = Destination.entries.firstOrNull { it.route == currentRoute }
+    // Капсула меню — лише на 4 головних вкладках; форми й деталі відкриваються "поверх" без неї.
+    val showBottomMenu = currentDestination != null
+
+    val back: () -> Unit = { navController.popBackStack() }
 
     Scaffold(
         containerColor = Color.Transparent,
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+        // Системні відступи обробляємо самі: статус-бар — для всього контенту,
+        // навігаційна панель — у капсулі меню або в самих другорядних екранах.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            BottomMenu(
-                current = currentDestination,
-                onSelect = { destination ->
-                    navController.navigate(destination.route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
-                onAddClick = {
-                    // Створення нового запису журналу — етап 3.
-                },
-                modifier = Modifier.navigationBarsPadding()
-            )
+            if (showBottomMenu) {
+                BottomMenu(
+                    current = currentDestination ?: Destination.HOME,
+                    onSelect = { destination ->
+                        navController.navigate(destination.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onAddClick = {
+                        navController.navigate(if (activeCar != null) Routes.RECORD_FORM_ADD else Routes.CAR_FORM_ADD)
+                    },
+                    modifier = Modifier.navigationBarsPadding()
+                )
+            }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            NavHost(
-                navController = navController,
-                startDestination = Destination.HOME.route,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                composable(Destination.HOME.route) {
-                    HomeScreen(
-                        onAddCar = { navController.navigate(Routes.CAR_FORM_ADD) },
-                        onEditCar = { carId -> navController.navigate(Routes.carFormEdit(carId)) },
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
-                composable(Destination.JOURNAL.route) {
-                    JournalScreen(modifier = Modifier.padding(innerPadding))
-                }
-                composable(Destination.PLAN.route) {
-                    PlanScreen(modifier = Modifier.padding(innerPadding))
-                }
-                composable(Destination.SETTINGS.route) {
-                    SettingsScreen(
-                        onNavigateToArchive = { navController.navigate(Routes.ARCHIVE) },
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
-                composable(Routes.CAR_FORM_ADD) {
-                    CarFormScreen(
-                        carIdToEdit = null,
-                        onSaved = { navController.popBackStack() },
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
-                composable(
-                    route = Routes.CAR_FORM_EDIT_PATTERN,
-                    arguments = listOf(navArgument(Routes.CAR_ID_ARG) { type = NavType.LongType })
-                ) { backStackEntry ->
-                    val carId = backStackEntry.arguments?.getLong(Routes.CAR_ID_ARG)
-                    CarFormScreen(
-                        carIdToEdit = carId,
-                        onSaved = { navController.popBackStack() },
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
-                composable(Routes.ARCHIVE) {
-                    ArchiveScreen(modifier = Modifier.padding(innerPadding))
-                }
+        val tabModifier = Modifier.padding(innerPadding)
+        // Для другорядних екранів: не заходимо під навбар і піднімаємось над клавіатурою.
+        val secondaryModifier = Modifier.padding(innerPadding).navigationBarsPadding().imePadding()
+
+        NavHost(
+            navController = navController,
+            startDestination = Destination.HOME.route,
+            modifier = Modifier.fillMaxSize().statusBarsPadding()
+        ) {
+            composable(Destination.HOME.route) {
+                HomeScreen(
+                    onAddCar = { navController.navigate(Routes.CAR_FORM_ADD) },
+                    onEditCar = { carId -> navController.navigate(Routes.carFormEdit(carId)) },
+                    modifier = tabModifier
+                )
+            }
+            composable(Destination.JOURNAL.route) {
+                JournalScreen(
+                    onOpenRecord = { id -> navController.navigate(Routes.recordDetail(id)) },
+                    onAddRecord = { navController.navigate(Routes.RECORD_FORM_ADD) },
+                    onAddCar = { navController.navigate(Routes.CAR_FORM_ADD) },
+                    modifier = tabModifier
+                )
+            }
+            composable(Destination.PLAN.route) {
+                PlanScreen(modifier = tabModifier)
+            }
+            composable(Destination.SETTINGS.route) {
+                SettingsScreen(
+                    onNavigateToArchive = { navController.navigate(Routes.ARCHIVE) },
+                    onNavigateToWorkTypes = { navController.navigate(Routes.WORK_TYPES) },
+                    modifier = tabModifier
+                )
+            }
+
+            composable(Routes.CAR_FORM_ADD) {
+                CarFormScreen(carIdToEdit = null, onSaved = back, onBack = back, modifier = secondaryModifier)
+            }
+            composable(
+                route = Routes.CAR_FORM_EDIT_PATTERN,
+                arguments = listOf(navArgument(Routes.CAR_ID_ARG) { type = NavType.LongType })
+            ) { entry ->
+                CarFormScreen(
+                    carIdToEdit = entry.arguments?.getLong(Routes.CAR_ID_ARG),
+                    onSaved = back,
+                    onBack = back,
+                    modifier = secondaryModifier
+                )
+            }
+            composable(Routes.ARCHIVE) {
+                ArchiveScreen(onBack = back, modifier = secondaryModifier)
+            }
+
+            composable(Routes.RECORD_FORM_ADD) {
+                RecordFormScreen(
+                    recordIdToEdit = null,
+                    onSaved = {
+                        // Після нового запису — у журнал (а не назад на головну), щоб одразу його бачити.
+                        navController.navigate(Destination.JOURNAL.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onBack = back,
+                    modifier = secondaryModifier
+                )
+            }
+            composable(
+                route = Routes.RECORD_FORM_EDIT_PATTERN,
+                arguments = listOf(navArgument(Routes.RECORD_ID_ARG) { type = NavType.LongType })
+            ) { entry ->
+                RecordFormScreen(
+                    recordIdToEdit = entry.arguments?.getLong(Routes.RECORD_ID_ARG),
+                    onSaved = back,
+                    onBack = back,
+                    modifier = secondaryModifier
+                )
+            }
+            composable(
+                route = Routes.RECORD_DETAIL_PATTERN,
+                arguments = listOf(navArgument(Routes.RECORD_ID_ARG) { type = NavType.LongType })
+            ) { entry ->
+                val recordId = entry.arguments?.getLong(Routes.RECORD_ID_ARG) ?: 0L
+                RecordDetailScreen(
+                    recordId = recordId,
+                    onBack = back,
+                    onEdit = { id -> navController.navigate(Routes.recordFormEdit(id)) },
+                    modifier = secondaryModifier
+                )
+            }
+            composable(Routes.WORK_TYPES) {
+                WorkTypesScreen(onBack = back, modifier = secondaryModifier)
             }
         }
     }

@@ -13,6 +13,9 @@
     <string name="settings_title">Налаштування</string>
     <string name="settings_section_car">Автомобіль</string>
     <string name="settings_active_car">Активний автомобіль і архів</string>
+    <string name="settings_section_journal">Журнал</string>
+    <string name="settings_work_types">Довідник робіт і запчастин</string>
+    <string name="settings_work_types_hint">Підказки для форми запису</string>
     <string name="settings_section_data">Дані</string>
     <string name="settings_backup">Резервна копія (експорт/імпорт)</string>
     <string name="settings_backup_hint">З\'явиться на етапі 4</string>

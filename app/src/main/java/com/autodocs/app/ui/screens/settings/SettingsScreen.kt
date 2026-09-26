@@ -26,10 +26,14 @@ private data class SettingsSection(val title: String, val rows: List<SettingsRow
 /**
  * F13, базова версія (етап 1): структура розділів налаштувань є, але без
  * реальної логіки — вона з'являється разом із відповідними фічами
- * (авто/архів — етап 2 [готово], бекап — етап 4, сповіщення — етап 6).
+ * (авто/архів — етап 2, довідник робіт — етап 3, бекап — етап 4, сповіщення — етап 6).
  */
 @Composable
-fun SettingsScreen(onNavigateToArchive: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    onNavigateToArchive: () -> Unit,
+    onNavigateToWorkTypes: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val sections = listOf(
         SettingsSection(
             title = stringResource(R.string.settings_section_car),
@@ -37,6 +41,16 @@ fun SettingsScreen(onNavigateToArchive: () -> Unit, modifier: Modifier = Modifie
                 SettingsRow(
                     title = stringResource(R.string.settings_active_car),
                     onClick = onNavigateToArchive
+                )
+            )
+        ),
+        SettingsSection(
+            title = stringResource(R.string.settings_section_journal),
+            rows = listOf(
+                SettingsRow(
+                    title = stringResource(R.string.settings_work_types),
+                    hint = stringResource(R.string.settings_work_types_hint),
+                    onClick = onNavigateToWorkTypes
                 )
             )
         ),
@@ -68,17 +82,13 @@ fun SettingsScreen(onNavigateToArchive: () -> Unit, modifier: Modifier = Modifie
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = AutoDocsDimens.ScreenPadding),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = AutoDocsDimens.ScreenPadding)
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = AutoDocsDimens.ScreenPadding)
     ) {
         item {
-            Text(
-                text = stringResource(R.string.settings_title),
-                style = MaterialTheme.typography.headlineMedium,
-                color = TextPrimary
-            )
+            com.autodocs.app.ui.components.ScreenHeader(title = stringResource(R.string.settings_title))
         }
         items(sections) { section ->
-            Column(modifier = Modifier.padding(top = AutoDocsDimens.SectionSpacing)) {
+            Column(modifier = Modifier.padding(bottom = AutoDocsDimens.SectionSpacing)) {
                 Text(
                     text = section.title,
                     style = MaterialTheme.typography.labelMedium,

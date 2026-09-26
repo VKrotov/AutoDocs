@@ -16,12 +16,21 @@ enum class Destination(val route: String, val labelRes: Int, val icon: ImageVect
     SETTINGS("settings", R.string.nav_settings, Icons.Filled.Settings)
 }
 
-/** Другорядні екрани поза нижнім меню (не показуються в капсулі). */
+/** Другорядні екрани поза нижнім меню (на них капсула меню ховається). */
 object Routes {
     const val CAR_ID_ARG = "carId"
+    const val RECORD_ID_ARG = "recordId"
+
     const val CAR_FORM_ADD = "car_form/add"
     const val CAR_FORM_EDIT_PATTERN = "car_form/edit/{$CAR_ID_ARG}"
     const val ARCHIVE = "archive"
 
+    const val RECORD_FORM_ADD = "record_form/add"
+    const val RECORD_FORM_EDIT_PATTERN = "record_form/edit/{$RECORD_ID_ARG}"
+    const val RECORD_DETAIL_PATTERN = "record/{$RECORD_ID_ARG}"
+    const val WORK_TYPES = "work_types"
+
     fun carFormEdit(carId: Long) = "car_form/edit/$carId"
+    fun recordFormEdit(recordId: Long) = "record_form/edit/$recordId"
+    fun recordDetail(recordId: Long) = "record/$recordId"
 }

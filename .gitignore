@@ -4,6 +4,7 @@
 /.idea/
 .DS_Store
 /build
+/app/build
 /captures
 .externalNativeBuild
 .cxx
@@ -17,3 +18,4 @@ keystore/keystore.properties
 # Debug-keystore СТАБІЛЬНИЙ і навмисно комітиться — інакше кожен CI-білд
 # підписує debug APK новим ключем і Android відмовляється ставити "оновлення".
 !keystore/debug.keystore
+.kotlin/
