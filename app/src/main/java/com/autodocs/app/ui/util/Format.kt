@@ -104,3 +104,12 @@ fun formatUpdatedAgo(timestampMillis: Long): String {
         else -> "оновлено $days ${pluralUk(days, "день", "дні", "днів")} тому"
     }
 }
+
+private val dateTimeFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", UkLocale)
+
+/** «26 вересня 2026, 14:20» для звичайного timestamp (локальний час). */
+fun formatDateTime(timestampMillis: Long): String =
+    Instant.ofEpochMilli(timestampMillis).atZone(ZoneId.systemDefault()).format(dateTimeFormatter)
+
+/** «2026-09-26» — для імен файлів. */
+fun isoToday(): String = LocalDate.now().toString()

@@ -29,6 +29,7 @@ object Routes {
     const val RECORD_FORM_EDIT_PATTERN = "record_form/edit/{$RECORD_ID_ARG}"
     const val RECORD_DETAIL_PATTERN = "record/{$RECORD_ID_ARG}"
     const val WORK_TYPES = "work_types"
+    const val BACKUP = "backup"
 
     fun carFormEdit(carId: Long) = "car_form/edit/$carId"
     fun recordFormEdit(recordId: Long) = "record_form/edit/$recordId"

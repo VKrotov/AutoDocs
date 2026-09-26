@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.autodocs.app.data.dao.BackupDao
 import com.autodocs.app.data.dao.CarDao
 import com.autodocs.app.data.dao.MaintenanceRuleDao
 import com.autodocs.app.data.dao.MileageEntryDao
@@ -48,8 +49,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun maintenanceRuleDao(): MaintenanceRuleDao
     abstract fun mileageEntryDao(): MileageEntryDao
     abstract fun photoDao(): PhotoDao
+    abstract fun backupDao(): BackupDao
 
     companion object {
+        /** Версія схеми — пишеться в бекап; тримати в синхроні з @Database(version). */
+        const val SCHEMA_VERSION = 1
+
         private const val DB_NAME = "autodocs.db"
 
         @Volatile

@@ -32,6 +32,7 @@ private data class SettingsSection(val title: String, val rows: List<SettingsRow
 fun SettingsScreen(
     onNavigateToArchive: () -> Unit,
     onNavigateToWorkTypes: () -> Unit,
+    onNavigateToBackup: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sections = listOf(
@@ -58,8 +59,9 @@ fun SettingsScreen(
             title = stringResource(R.string.settings_section_data),
             rows = listOf(
                 SettingsRow(
-                    stringResource(R.string.settings_backup),
-                    stringResource(R.string.settings_backup_hint)
+                    title = stringResource(R.string.settings_backup),
+                    hint = stringResource(R.string.settings_backup_hint),
+                    onClick = onNavigateToBackup
                 )
             )
         ),

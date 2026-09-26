@@ -18,7 +18,7 @@
     <string name="settings_work_types_hint">Підказки для форми запису</string>
     <string name="settings_section_data">Дані</string>
     <string name="settings_backup">Резервна копія (експорт/імпорт)</string>
-    <string name="settings_backup_hint">З\'явиться на етапі 4</string>
+    <string name="settings_backup_hint">Зберегти в .zip або відновити з нього</string>
     <string name="settings_section_notifications">Нагадування</string>
     <string name="settings_notifications">Сповіщення про ТО</string>
     <string name="settings_notifications_hint">З\'явиться на етапі 6</string>

@@ -21,6 +21,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.autodocs.app.AutoDocsApp
+import com.autodocs.app.ui.screens.backup.BackupScreen
 import com.autodocs.app.ui.screens.car.ArchiveScreen
 import com.autodocs.app.ui.screens.car.CarFormScreen
 import com.autodocs.app.ui.screens.home.HomeScreen
@@ -100,6 +101,7 @@ fun AutoDocsNavHost() {
                 SettingsScreen(
                     onNavigateToArchive = { navController.navigate(Routes.ARCHIVE) },
                     onNavigateToWorkTypes = { navController.navigate(Routes.WORK_TYPES) },
+                    onNavigateToBackup = { navController.navigate(Routes.BACKUP) },
                     modifier = tabModifier
                 )
             }
@@ -162,6 +164,9 @@ fun AutoDocsNavHost() {
             }
             composable(Routes.WORK_TYPES) {
                 WorkTypesScreen(onBack = back, modifier = secondaryModifier)
+            }
+            composable(Routes.BACKUP) {
+                BackupScreen(onBack = back, modifier = secondaryModifier)
             }
         }
     }

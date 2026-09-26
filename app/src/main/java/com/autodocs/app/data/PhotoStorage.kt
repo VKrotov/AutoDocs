@@ -20,7 +20,8 @@ object PhotoStorage {
     private const val MAX_SIDE = 1600
     private const val JPEG_QUALITY = 88
 
-    private fun photosDir(context: Context): File =
+    /** Папка з фото застосунку (files/photos). */
+    fun photosDir(context: Context): File =
         File(context.filesDir, "photos").apply { mkdirs() }
 
     /** Копіює зображення з [source] у сховище застосунку. Повертає `file://` URI або null. */
