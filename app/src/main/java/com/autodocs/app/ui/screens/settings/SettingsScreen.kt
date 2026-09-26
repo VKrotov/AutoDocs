@@ -1,5 +1,6 @@
 package com.autodocs.app.ui.screens.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,20 +20,25 @@ import com.autodocs.app.ui.theme.AutoDocsDimens
 import com.autodocs.app.ui.theme.TextPrimary
 import com.autodocs.app.ui.theme.TextSecondary
 
-private data class SettingsRow(val title: String, val hint: String? = null)
+private data class SettingsRow(val title: String, val hint: String? = null, val onClick: (() -> Unit)? = null)
 private data class SettingsSection(val title: String, val rows: List<SettingsRow>)
 
 /**
  * F13, базова версія (етап 1): структура розділів налаштувань є, але без
  * реальної логіки — вона з'являється разом із відповідними фічами
- * (авто/архів — етап 2, бекап — етап 4, сповіщення — етап 6).
+ * (авто/архів — етап 2 [готово], бекап — етап 4, сповіщення — етап 6).
  */
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(onNavigateToArchive: () -> Unit, modifier: Modifier = Modifier) {
     val sections = listOf(
         SettingsSection(
             title = stringResource(R.string.settings_section_car),
-            rows = listOf(SettingsRow(stringResource(R.string.settings_active_car)))
+            rows = listOf(
+                SettingsRow(
+                    title = stringResource(R.string.settings_active_car),
+                    onClick = onNavigateToArchive
+                )
+            )
         ),
         SettingsSection(
             title = stringResource(R.string.settings_section_data),
@@ -86,7 +92,12 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                                 color = TextSecondary.copy(alpha = 0.15f)
                             )
                         }
-                        Column(modifier = Modifier.padding(vertical = 10.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .let { m -> row.onClick?.let { m.clickable(onClick = it) } ?: m }
+                                .padding(vertical = 10.dp)
+                        ) {
                             Text(row.title, style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
                             row.hint?.let {
                                 Text(it, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
