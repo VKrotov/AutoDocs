@@ -128,7 +128,11 @@ fun AutoDocsNavHost() {
                 RecordFormScreen(
                     recordIdToEdit = null,
                     onSaved = {
-                        // Після нового запису — у журнал (а не назад на головну), щоб одразу його бачити.
+                        // Після нового запису — у журнал, щоб одразу його бачити.
+                        // Спершу ПРИБИРАЄМО форму зі стеку: інакше saveState "запам'ятовував" її
+                        // під вкладкою «Головна», і тап на «Головна» знову відкривав форму,
+                        // яка одразу перекидала назад у журнал (баг: не можна було повернутись на головну).
+                        navController.popBackStack()
                         navController.navigate(Destination.JOURNAL.route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true

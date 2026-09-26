@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,17 +24,16 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -46,6 +47,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -64,6 +67,7 @@ import com.autodocs.app.ui.components.autoDocsFieldColors
 import com.autodocs.app.ui.theme.Accent
 import com.autodocs.app.ui.theme.AutoDocsDimens
 import com.autodocs.app.ui.theme.OnAccent
+import com.autodocs.app.ui.theme.StatusSoon
 import com.autodocs.app.ui.theme.TextPrimary
 import com.autodocs.app.ui.theme.TextSecondary
 import com.autodocs.app.ui.util.formatMoney
@@ -92,7 +96,8 @@ fun RecordFormScreen(
 
     LaunchedEffect(recordIdToEdit) { viewModel.init(recordIdToEdit) }
     LaunchedEffect(state.isSaved, state.noActiveCar) {
-        if (state.isSaved || state.noActiveCar) onSaved()
+        // Подія «збережено» спрацьовує рівно один раз, навіть якщо екран відтворено знову.
+        if ((state.isSaved || state.noActiveCar) && viewModel.consumeFinishEvent()) onSaved()
     }
 
     if (state.isLoading) {
@@ -209,6 +214,15 @@ fun RecordFormScreen(
 
         item {
             val blocker = state.blocker
+            // Причину, чому не можна зберегти, показуємо НАД кнопкою — щоб її було видно.
+            if (blocker != null) {
+                Text(
+                    blocker,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = StatusSoon,
+                    modifier = Modifier.padding(top = 8.dp, start = 4.dp)
+                )
+            }
             Button(
                 onClick = viewModel::save,
                 enabled = blocker == null && !state.isSaving,
@@ -216,14 +230,6 @@ fun RecordFormScreen(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(52.dp)
             ) {
                 Text(if (state.recordId == null) "Зберегти запис" else "Зберегти зміни")
-            }
-            if (blocker != null) {
-                Text(
-                    blocker,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
             }
         }
     }
@@ -318,8 +324,12 @@ private fun ItemEditor(
     }
 }
 
-/** Текстове поле з випадаючими підказками (довідник робіт, раніше введені СТО). */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Текстове поле з підказками (довідник робіт, раніше введені СТО).
+ * Підказки — чипи ПІД полем, а не випадаюче меню: спливаюче вікно меню
+ * на телефоні могло перекривати кнопку «Зберегти» й «з'їдати» натискання.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun <T> SuggestField(
     value: String,
@@ -329,17 +339,14 @@ private fun <T> SuggestField(
     suggestionText: (T) -> String,
     onSuggestionPicked: (T) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    val shown = suggestions.take(40)
-    ExposedDropdownMenuBox(
-        expanded = expanded && shown.isNotEmpty(),
-        onExpandedChange = { expanded = it }
-    ) {
+    var focused by remember { mutableStateOf(false) }
+    var picked by remember { mutableStateOf(false) }
+    Column {
         OutlinedTextField(
             value = value,
             onValueChange = {
                 onValueChange(it)
-                expanded = true
+                picked = false
             },
             label = { Text(label) },
             singleLine = true,
@@ -347,20 +354,26 @@ private fun <T> SuggestField(
             colors = autoDocsFieldColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryEditable, true)
+                .onFocusChanged { focused = it.isFocused }
         )
-        ExposedDropdownMenu(
-            expanded = expanded && shown.isNotEmpty(),
-            onDismissRequest = { expanded = false }
-        ) {
-            shown.forEach { suggestion ->
-                DropdownMenuItem(
-                    text = { Text(suggestionText(suggestion)) },
-                    onClick = {
-                        onSuggestionPicked(suggestion)
-                        expanded = false
-                    }
-                )
+        val shown = if (focused && !picked) suggestions.take(6) else emptyList()
+        if (shown.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+            ) {
+                shown.forEach { suggestion ->
+                    SuggestionChip(
+                        onClick = {
+                            onSuggestionPicked(suggestion)
+                            picked = true
+                        },
+                        label = {
+                            Text(suggestionText(suggestion), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        },
+                        colors = SuggestionChipDefaults.suggestionChipColors(labelColor = TextPrimary)
+                    )
+                }
             }
         }
     }

@@ -72,6 +72,15 @@ class RecordFormViewModel(
     val stoNames: StateFlow<List<String>> = serviceRepository.observeStoNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private var finishConsumed = false
+
+    /** true лише при першому виклику після збереження — захист від повторної навігації. */
+    fun consumeFinishEvent(): Boolean {
+        if (finishConsumed) return false
+        finishConsumed = true
+        return true
+    }
+
     private var nextKey = 1L
     private var initialized = false
 
@@ -164,7 +173,8 @@ class RecordFormViewModel(
     fun save() {
         val s = _state.value
         val carId = s.carId ?: return
-        if (s.blocker != null || s.isSaving) return
+        // isSaved: запис уже збережено — повторне натискання не має створювати дубль.
+        if (s.blocker != null || s.isSaving || s.isSaved) return
         val mileage = s.mileageText.toIntOrNull() ?: return
         viewModelScope.launch {
             _state.update { it.copy(isSaving = true) }
