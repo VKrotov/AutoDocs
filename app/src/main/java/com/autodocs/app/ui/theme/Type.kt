@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+
 package com.autodocs.app.ui.theme
 
 import androidx.compose.material3.Typography
@@ -25,13 +27,13 @@ val JetBrainsMonoFamily = FontFamily(
 )
 
 val AutoDocsTypography = Typography(
-    headlineMedium = TextStyle( // заголовок "Мій Passat" (27px bold за дизайном)
+    headlineMedium = TextStyle(
         fontFamily = OnestFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 27.sp,
         lineHeight = 32.sp
     ),
-    titleLarge = TextStyle( // великий пробіг (30px)
+    titleLarge = TextStyle(
         fontFamily = OnestFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 30.sp,
@@ -55,7 +57,7 @@ val AutoDocsTypography = Typography(
         fontSize = 14.sp,
         lineHeight = 20.sp
     ),
-    labelMedium = TextStyle( // підписи в нижньому меню
+    labelMedium = TextStyle(
         fontFamily = OnestFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
