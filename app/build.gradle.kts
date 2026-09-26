@@ -31,6 +31,16 @@ android {
     }
 
     signingConfigs {
+        // Стабільний debug-ключ, закомічений у репозиторій (keystore/debug.keystore).
+        // Без цього кожен GitHub Actions runner генерує СВІЙ debug.keystore,
+        // тож кожен debug-білд підписаний іншим ключем і телефон відмовляється
+        // "оновлювати" застосунок (Android блокує install з іншим підписом).
+        getByName("debug") {
+            storeFile = rootProject.file("keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (hasSigningConfig) {
             create("release") {
                 storeFile = rootProject.file("keystore/${keystoreProps["storeFile"]!!.toString().substringAfterLast("/")}")
