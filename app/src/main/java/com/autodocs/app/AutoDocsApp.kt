@@ -5,6 +5,7 @@ import com.autodocs.app.data.AppDatabase
 import com.autodocs.app.data.AppPrefs
 import com.autodocs.app.data.backup.BackupManager
 import com.autodocs.app.data.repository.CarRepository
+import com.autodocs.app.data.repository.PlanRepository
 import com.autodocs.app.data.repository.ServiceRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,8 @@ class AutoDocsApp : Application() {
     val serviceRepository: ServiceRepository by lazy { ServiceRepository(database) }
 
     val backupManager: BackupManager by lazy { BackupManager(this, database) }
+
+    val planRepository: PlanRepository by lazy { PlanRepository(database) }
 
     override fun onCreate() {
         super.onCreate()

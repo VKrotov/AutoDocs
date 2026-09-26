@@ -26,7 +26,9 @@ import com.autodocs.app.ui.screens.car.ArchiveScreen
 import com.autodocs.app.ui.screens.car.CarFormScreen
 import com.autodocs.app.ui.screens.home.HomeScreen
 import com.autodocs.app.ui.screens.journal.JournalScreen
+import com.autodocs.app.ui.screens.plan.BaselineSetupScreen
 import com.autodocs.app.ui.screens.plan.PlanScreen
+import com.autodocs.app.ui.screens.plan.RuleEditScreen
 import com.autodocs.app.ui.screens.record.RecordDetailScreen
 import com.autodocs.app.ui.screens.record.RecordFormScreen
 import com.autodocs.app.ui.screens.settings.SettingsScreen
@@ -95,7 +97,13 @@ fun AutoDocsNavHost() {
                 )
             }
             composable(Destination.PLAN.route) {
-                PlanScreen(modifier = tabModifier)
+                PlanScreen(
+                    onOpenRule = { id -> navController.navigate(Routes.planRuleEdit(id)) },
+                    onAddRule = { navController.navigate(Routes.PLAN_RULE_NEW) },
+                    onOpenSetup = { navController.navigate(Routes.PLAN_SETUP) },
+                    onAddCar = { navController.navigate(Routes.CAR_FORM_ADD) },
+                    modifier = tabModifier
+                )
             }
             composable(Destination.SETTINGS.route) {
                 SettingsScreen(
@@ -168,6 +176,23 @@ fun AutoDocsNavHost() {
             }
             composable(Routes.WORK_TYPES) {
                 WorkTypesScreen(onBack = back, modifier = secondaryModifier)
+            }
+            composable(Routes.PLAN_RULE_NEW) {
+                RuleEditScreen(ruleId = null, onDone = back, onBack = back, modifier = secondaryModifier)
+            }
+            composable(
+                route = Routes.PLAN_RULE_EDIT_PATTERN,
+                arguments = listOf(navArgument(Routes.RULE_ID_ARG) { type = NavType.LongType })
+            ) { entry ->
+                RuleEditScreen(
+                    ruleId = entry.arguments?.getLong(Routes.RULE_ID_ARG),
+                    onDone = back,
+                    onBack = back,
+                    modifier = secondaryModifier
+                )
+            }
+            composable(Routes.PLAN_SETUP) {
+                BaselineSetupScreen(onDone = back, onBack = back, modifier = secondaryModifier)
             }
             composable(Routes.BACKUP) {
                 BackupScreen(onBack = back, modifier = secondaryModifier)

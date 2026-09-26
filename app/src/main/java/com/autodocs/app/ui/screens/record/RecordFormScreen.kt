@@ -63,6 +63,7 @@ import com.autodocs.app.ui.components.GlassSurface
 import com.autodocs.app.ui.components.PillText
 import com.autodocs.app.ui.components.ScreenHeader
 import com.autodocs.app.ui.components.SectionLabel
+import com.autodocs.app.ui.components.SuggestTextField
 import com.autodocs.app.ui.components.autoDocsFieldColors
 import com.autodocs.app.ui.theme.Accent
 import com.autodocs.app.ui.theme.AutoDocsDimens
@@ -147,7 +148,7 @@ fun RecordFormScreen(
             )
         }
         item {
-            SuggestField(
+            SuggestTextField(
                 value = state.stoName,
                 onValueChange = viewModel::onStoChange,
                 label = "СТО / хто робив (необов'язково)",
@@ -298,7 +299,7 @@ private fun ItemEditor(
                 }
             }
             val query = draft.name.trim()
-            SuggestField(
+            SuggestTextField(
                 value = draft.name,
                 onValueChange = onNameChange,
                 label = if (draft.category == WorkItemCategory.ROBOTA) "Що робили" else "Що купили / поставили",
@@ -320,61 +321,6 @@ private fun ItemEditor(
                 colors = autoDocsFieldColors(),
                 modifier = Modifier.fillMaxWidth()
             )
-        }
-    }
-}
-
-/**
- * Текстове поле з підказками (довідник робіт, раніше введені СТО).
- * Підказки — чипи ПІД полем, а не випадаюче меню: спливаюче вікно меню
- * на телефоні могло перекривати кнопку «Зберегти» й «з'їдати» натискання.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun <T> SuggestField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    suggestions: List<T>,
-    suggestionText: (T) -> String,
-    onSuggestionPicked: (T) -> Unit
-) {
-    var focused by remember { mutableStateOf(false) }
-    var picked by remember { mutableStateOf(false) }
-    Column {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {
-                onValueChange(it)
-                picked = false
-            },
-            label = { Text(label) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            colors = autoDocsFieldColors(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .onFocusChanged { focused = it.isFocused }
-        )
-        val shown = if (focused && !picked) suggestions.take(6) else emptyList()
-        if (shown.isNotEmpty()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
-            ) {
-                shown.forEach { suggestion ->
-                    SuggestionChip(
-                        onClick = {
-                            onSuggestionPicked(suggestion)
-                            picked = true
-                        },
-                        label = {
-                            Text(suggestionText(suggestion), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        },
-                        colors = SuggestionChipDefaults.suggestionChipColors(labelColor = TextPrimary)
-                    )
-                }
-            }
         }
     }
 }

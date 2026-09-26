@@ -113,3 +113,31 @@ fun formatDateTime(timestampMillis: Long): String =
 
 /** «2026-09-26» — для імен файлів. */
 fun isoToday(): String = LocalDate.now().toString()
+
+// ---- План ТО ----
+
+/** «Кожні 10 000 км або 12 міс» / «Раз на 24 міс» / «Кожні 30 000 км». */
+fun formatInterval(km: Int?, months: Int?): String = when {
+    km != null && months != null -> "Кожні ${formatKm(km)} км або $months міс"
+    km != null -> "Кожні ${formatKm(km)} км"
+    months != null -> "Раз на $months міс"
+    else -> "Інтервал не задано"
+}
+
+/** 25 → «25 днів», −12 → «−12 днів». */
+fun formatDaysSigned(days: Long): String {
+    val abs = kotlin.math.abs(days)
+    val sign = if (days < 0) "−" else ""
+    return "$sign$abs ${pluralUk(abs, "день", "дні", "днів")}"
+}
+
+/** 1180 → «1 180 км», −2000 → «−2 000 км». */
+fun formatKmSigned(km: Int): String = (if (km < 0) "−" else "") + formatKm(kotlin.math.abs(km)) + " км"
+
+private val shortDateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", UkLocale)
+
+/** «12 жовт. 2027» */
+fun formatShortDate(date: LocalDate): String = date.format(shortDateFormatter)
+
+/** «12 вересня 2026» для LocalDate. */
+fun formatLongDate(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("d MMMM yyyy", UkLocale))

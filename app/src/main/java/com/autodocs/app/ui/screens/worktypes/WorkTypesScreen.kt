@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -151,11 +152,21 @@ fun WorkTypesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
             onDismiss = { renaming = null }
         )
     }
+    var rulesUsing by remember { mutableStateOf(0) }
+    LaunchedEffect(deleting) {
+        rulesUsing = deleting?.let { app.planRepository.countRulesForWorkType(it.id) } ?: 0
+    }
     deleting?.let { wt ->
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Видалити «${wt.name}»?") },
-            text = { Text("Зі старих записів журналу ця назва не зникне — вона там збережена окремо.") },
+            text = {
+                Text(
+                    "Зі старих записів журналу ця назва не зникне — вона там збережена окремо." +
+                        if (rulesUsing > 0) "\n\nУВАГА: пункт використовується в регламенті ТО — " +
+                            "відповідне правило плану ТО теж буде видалено." else ""
+                )
+            },
             confirmButton = {
                 TextButton(onClick = { viewModel.delete(wt); deleting = null }) { Text("Видалити", color = StatusOverdue) }
             },

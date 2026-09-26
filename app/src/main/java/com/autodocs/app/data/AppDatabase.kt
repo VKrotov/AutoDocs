@@ -60,6 +60,15 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
+        /** Лише для тестів: закрити й забути singleton, щоб наступний тест отримав чисту БД. */
+        @androidx.annotation.VisibleForTesting
+        fun resetInstanceForTests() {
+            synchronized(this) {
+                instance?.close()
+                instance = null
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(

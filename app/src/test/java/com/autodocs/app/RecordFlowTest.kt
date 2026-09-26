@@ -32,6 +32,8 @@ import org.robolectric.annotation.Config
 class RecordFlowTest {
     @get:Rule val rule = createAndroidComposeRule<MainActivity>()
 
+    @org.junit.After fun resetDb() = com.autodocs.app.data.AppDatabase.resetInstanceForTests()
+
     private fun app() = rule.activity.application as AutoDocsApp
     private fun scrollTo(m: SemanticsMatcher) { rule.onNode(hasScrollAction()).performScrollToNode(m) }
     private fun exists(m: SemanticsMatcher) = rule.onAllNodes(m).fetchSemanticsNodes().isNotEmpty()

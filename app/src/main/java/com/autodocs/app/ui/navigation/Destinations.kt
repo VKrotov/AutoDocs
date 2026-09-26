@@ -31,6 +31,13 @@ object Routes {
     const val WORK_TYPES = "work_types"
     const val BACKUP = "backup"
 
+    const val RULE_ID_ARG = "ruleId"
+    const val PLAN_RULE_NEW = "plan_rule/new"
+    const val PLAN_RULE_EDIT_PATTERN = "plan_rule/edit/{$RULE_ID_ARG}"
+    const val PLAN_SETUP = "plan_setup"
+
+    fun planRuleEdit(ruleId: Long) = "plan_rule/edit/$ruleId"
+
     fun carFormEdit(carId: Long) = "car_form/edit/$carId"
     fun recordFormEdit(recordId: Long) = "record_form/edit/$recordId"
     fun recordDetail(recordId: Long) = "record/$recordId"
