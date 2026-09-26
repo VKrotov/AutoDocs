@@ -33,6 +33,7 @@ fun SettingsScreen(
     onNavigateToArchive: () -> Unit,
     onNavigateToWorkTypes: () -> Unit,
     onNavigateToBackup: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sections = listOf(
@@ -69,8 +70,9 @@ fun SettingsScreen(
             title = stringResource(R.string.settings_section_notifications),
             rows = listOf(
                 SettingsRow(
-                    stringResource(R.string.settings_notifications),
-                    stringResource(R.string.settings_notifications_hint)
+                    title = stringResource(R.string.settings_notifications),
+                    hint = stringResource(R.string.settings_notifications_hint),
+                    onClick = onNavigateToNotifications
                 )
             )
         ),

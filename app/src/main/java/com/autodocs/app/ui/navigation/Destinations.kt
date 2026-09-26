@@ -35,6 +35,7 @@ object Routes {
     const val PLAN_RULE_NEW = "plan_rule/new"
     const val PLAN_RULE_EDIT_PATTERN = "plan_rule/edit/{$RULE_ID_ARG}"
     const val PLAN_SETUP = "plan_setup"
+    const val NOTIFY_SETTINGS = "notify_settings"
 
     fun planRuleEdit(ruleId: Long) = "plan_rule/edit/$ruleId"
 

@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -21,11 +23,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.autodocs.app.AutoDocsApp
+import com.autodocs.app.data.notify.MaintenanceNotifier
 import com.autodocs.app.ui.screens.backup.BackupScreen
 import com.autodocs.app.ui.screens.car.ArchiveScreen
 import com.autodocs.app.ui.screens.car.CarFormScreen
 import com.autodocs.app.ui.screens.home.HomeScreen
 import com.autodocs.app.ui.screens.journal.JournalScreen
+import com.autodocs.app.ui.screens.notify.NotificationSettingsScreen
 import com.autodocs.app.ui.screens.plan.BaselineSetupScreen
 import com.autodocs.app.ui.screens.plan.PlanScreen
 import com.autodocs.app.ui.screens.plan.RuleEditScreen
@@ -35,7 +39,7 @@ import com.autodocs.app.ui.screens.settings.SettingsScreen
 import com.autodocs.app.ui.screens.worktypes.WorkTypesScreen
 
 @Composable
-fun AutoDocsNavHost() {
+fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Unit = {}) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
     val activeCar by app.carRepository.observeActiveCar().collectAsState(initial = null)
 
@@ -48,6 +52,16 @@ fun AutoDocsNavHost() {
 
     val back: () -> Unit = { navController.popBackStack() }
 
+    /** Перехід на вкладку капсули зі збереженням стану вкладок. */
+    val openTab: (Destination) -> Unit = { destination ->
+        navController.navigate(destination.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+
     Scaffold(
         containerColor = Color.Transparent,
         // Системні відступи обробляємо самі: статус-бар — для всього контенту,
@@ -58,11 +72,7 @@ fun AutoDocsNavHost() {
                 BottomMenu(
                     current = currentDestination ?: Destination.HOME,
                     onSelect = { destination ->
-                        navController.navigate(destination.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                        openTab(destination)
                     },
                     onAddClick = {
                         navController.navigate(if (activeCar != null) Routes.RECORD_FORM_ADD else Routes.CAR_FORM_ADD)
@@ -85,6 +95,8 @@ fun AutoDocsNavHost() {
                 HomeScreen(
                     onAddCar = { navController.navigate(Routes.CAR_FORM_ADD) },
                     onEditCar = { carId -> navController.navigate(Routes.carFormEdit(carId)) },
+                    onOpenPlan = { openTab(Destination.PLAN) },
+                    onOpenRule = { id -> navController.navigate(Routes.planRuleEdit(id)) },
                     modifier = tabModifier
                 )
             }
@@ -110,6 +122,7 @@ fun AutoDocsNavHost() {
                     onNavigateToArchive = { navController.navigate(Routes.ARCHIVE) },
                     onNavigateToWorkTypes = { navController.navigate(Routes.WORK_TYPES) },
                     onNavigateToBackup = { navController.navigate(Routes.BACKUP) },
+                    onNavigateToNotifications = { navController.navigate(Routes.NOTIFY_SETTINGS) },
                     modifier = tabModifier
                 )
             }
@@ -194,9 +207,26 @@ fun AutoDocsNavHost() {
             composable(Routes.PLAN_SETUP) {
                 BaselineSetupScreen(onDone = back, onBack = back, modifier = secondaryModifier)
             }
+            composable(Routes.NOTIFY_SETTINGS) {
+                NotificationSettingsScreen(onBack = back, modifier = secondaryModifier)
+            }
             composable(Routes.BACKUP) {
                 BackupScreen(onBack = back, modifier = secondaryModifier)
             }
         }
+    }
+
+    // Відкриття з натиснутого сповіщення (після того, як NavHost отримав граф).
+    LaunchedEffect(openRequest) {
+        if (openRequest == null) return@LaunchedEffect
+        // Граф NavHost встановлюється трохи пізніше за перший кадр — чекаємо першого екрана в стеку,
+        // інакше navigate() падає з «You must call setGraph() before calling getGraph()».
+        navController.currentBackStackEntryFlow.first()
+        when (openRequest) {
+            MaintenanceNotifier.OPEN_PLAN -> openTab(Destination.PLAN)
+            MaintenanceNotifier.OPEN_HOME -> openTab(Destination.HOME)
+            else -> return@LaunchedEffect
+        }
+        onOpenRequestHandled()
     }
 }

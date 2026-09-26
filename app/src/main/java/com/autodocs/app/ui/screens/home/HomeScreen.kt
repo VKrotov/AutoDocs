@@ -60,7 +60,9 @@ import com.autodocs.app.AutoDocsApp
 import com.autodocs.app.data.entity.Car
 import com.autodocs.app.data.entity.FuelType
 import com.autodocs.app.data.entity.TransmissionType
+import com.autodocs.app.data.repository.PlanOverview
 import com.autodocs.app.ui.components.CarPhoto
+import com.autodocs.app.ui.screens.plan.RulePlanList
 import com.autodocs.app.ui.components.GlassPillButton
 import com.autodocs.app.ui.components.GlassSurface
 import com.autodocs.app.ui.components.PillText
@@ -72,6 +74,7 @@ import com.autodocs.app.ui.theme.AutoDocsDimens
 import com.autodocs.app.ui.theme.LinkColor
 import com.autodocs.app.ui.theme.OnAccent
 import com.autodocs.app.ui.theme.StatusOverdue
+import com.autodocs.app.ui.theme.StatusSoon
 import com.autodocs.app.ui.theme.TextPrimary
 import com.autodocs.app.ui.theme.TextSecondary
 import com.autodocs.app.ui.theme.VinTextStyle
@@ -85,11 +88,14 @@ import kotlinx.coroutines.delay
 fun HomeScreen(
     onAddCar: () -> Unit,
     onEditCar: (Long) -> Unit,
+    onOpenPlan: () -> Unit,
+    onOpenRule: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
-    val viewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(app.carRepository))
+    val viewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(app.carRepository, app.planRepository))
     val activeCar by viewModel.activeCar.collectAsState()
+    val plan by viewModel.plan.collectAsState()
 
     val car = activeCar
     if (car == null) {
@@ -100,6 +106,9 @@ fun HomeScreen(
             onEdit = { onEditCar(car.id) },
             onArchive = { viewModel.archiveActiveCar(car.id) },
             onUpdateMileage = { viewModel.updateMileage(car.id, it) },
+            upcoming = {
+                UpcomingBlock(plan = plan, onOpenPlan = onOpenPlan, onOpenRule = onOpenRule)
+            },
             modifier = modifier
         )
     }
@@ -151,7 +160,8 @@ private fun CarHome(
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onUpdateMileage: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    upcoming: @Composable () -> Unit = {}
 ) {
     var showArchiveConfirm by remember { mutableStateOf(false) }
     var showMileageDialog by remember { mutableStateOf(false) }
@@ -209,7 +219,8 @@ private fun CarHome(
                             if (hasMileage) "Пробіг · ${formatUpdatedAgo(car.mileageUpdatedAt)}" else "Пробіг не вказано",
                             style = MaterialTheme.typography.bodyMedium,
                             fontSize = 13.sp,
-                            color = TextSecondary
+                            // Давно не оновлювали — підсвічуємо, бо від пробігу залежить прогноз ТО.
+                            color = if (!hasMileage || isMileageStale(car.mileageUpdatedAt)) StatusSoon else TextSecondary
                         )
                         Text(
                             buildAnnotatedString {
@@ -254,6 +265,8 @@ private fun CarHome(
                 }
             }
         }
+
+        upcoming()
 
         Spacer(Modifier.height(24.dp))
     }
@@ -389,5 +402,52 @@ private fun VinRow(vin: String) {
                 fontWeight = FontWeight.SemiBold
             )
         }
+    }
+}
+
+private fun isMileageStale(updatedAt: Long): Boolean =
+    System.currentTimeMillis() - updatedAt > 14L * 24 * 60 * 60 * 1000
+
+/** F11: «Найближче ТО» під карткою авто — як у фінальному дизайні. */
+@Composable
+private fun UpcomingBlock(plan: PlanOverview?, onOpenPlan: () -> Unit, onOpenRule: (Long) -> Unit) {
+    if (plan == null) return
+    Spacer(Modifier.height(20.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 0.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Text(
+            "Найближче ТО",
+            style = MaterialTheme.typography.titleMedium,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            "Усе",
+            color = LinkColor,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpenPlan).padding(4.dp)
+        )
+    }
+    Spacer(Modifier.height(10.dp))
+    if (plan.active.isEmpty()) {
+        GlassSurface(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AutoDocsDimens.CardRadiusInner)).clickable(onClick = onOpenPlan),
+            cornerRadius = AutoDocsDimens.CardRadiusInner,
+            contentPadding = 14.dp
+        ) {
+            Text("Регламент ТО ще не налаштований", style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
+            Text(
+                "Налаштувати в «Плані ТО» — займе хвилину",
+                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 13.sp,
+                color = LinkColor
+            )
+        }
+    } else {
+        RulePlanList(items = plan.active.take(4), onClick = { onOpenRule(it.rule.id) })
     }
 }

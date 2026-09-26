@@ -4,6 +4,8 @@ import android.app.Application
 import com.autodocs.app.data.AppDatabase
 import com.autodocs.app.data.AppPrefs
 import com.autodocs.app.data.backup.BackupManager
+import com.autodocs.app.data.notify.MaintenanceNotifier
+import com.autodocs.app.data.notify.ReminderScheduler
 import com.autodocs.app.data.repository.CarRepository
 import com.autodocs.app.data.repository.PlanRepository
 import com.autodocs.app.data.repository.ServiceRepository
@@ -32,6 +34,9 @@ class AutoDocsApp : Application() {
     override fun onCreate() {
         super.onCreate()
         seedWorkTypes()
+        MaintenanceNotifier.createChannel(this)
+        // Не даємо збою WorkManager (напр. у тестовому середовищі) покласти застосунок.
+        runCatching { ReminderScheduler.schedule(this) }
     }
 
     /** Стартовий довідник робіт — один раз за життя інсталяції. */

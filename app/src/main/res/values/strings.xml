@@ -21,7 +21,7 @@
     <string name="settings_backup_hint">Зберегти в .zip або відновити з нього</string>
     <string name="settings_section_notifications">Нагадування</string>
     <string name="settings_notifications">Сповіщення про ТО</string>
-    <string name="settings_notifications_hint">З\'явиться на етапі 6</string>
+    <string name="settings_notifications_hint">Коли й про що нагадувати</string>
     <string name="settings_section_about">Про застосунок</string>
     <string name="settings_version">Версія</string>
 
