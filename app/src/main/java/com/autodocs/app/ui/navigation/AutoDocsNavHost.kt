@@ -39,6 +39,8 @@ import com.autodocs.app.ui.screens.plan.RuleEditScreen
 import com.autodocs.app.ui.screens.record.RecordDetailScreen
 import com.autodocs.app.ui.screens.record.RecordFormScreen
 import com.autodocs.app.ui.screens.settings.SettingsScreen
+import com.autodocs.app.ui.screens.stats.ExpenseStatsScreen
+import com.autodocs.app.ui.screens.stats.MileageScreen
 import com.autodocs.app.ui.screens.worktypes.WorkTypesScreen
 
 @Composable
@@ -101,6 +103,7 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
                     onOpenPlan = { openTab(Destination.PLAN) },
                     onOpenRule = { id -> navController.navigate(Routes.planRuleEdit(id)) },
                     onOpenPassport = { carId -> navController.navigate(Routes.techPassport(carId)) },
+                    onOpenMileage = { navController.navigate(Routes.MILEAGE) },
                     modifier = tabModifier
                 )
             }
@@ -109,6 +112,7 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
                     onOpenRecord = { id -> navController.navigate(Routes.recordDetail(id)) },
                     onAddRecord = { navController.navigate(Routes.RECORD_FORM_ADD) },
                     onAddCar = { navController.navigate(Routes.CAR_FORM_ADD) },
+                    onOpenStats = { navController.navigate(Routes.EXPENSE_STATS) },
                     modifier = tabModifier
                 )
             }
@@ -118,6 +122,7 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
                     onAddRule = { navController.navigate(Routes.PLAN_RULE_NEW) },
                     onOpenSetup = { navController.navigate(Routes.PLAN_SETUP) },
                     onAddCar = { navController.navigate(Routes.CAR_FORM_ADD) },
+                    onOpenMileage = { navController.navigate(Routes.MILEAGE) },
                     modifier = tabModifier
                 )
             }
@@ -247,6 +252,16 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
             }
             composable(Routes.BACKUP) {
                 BackupScreen(onBack = back, modifier = secondaryModifier)
+            }
+            composable(Routes.MILEAGE) {
+                MileageScreen(
+                    onBack = back,
+                    onOpenRecord = { id -> navController.navigate(Routes.recordDetail(id)) },
+                    modifier = secondaryModifier
+                )
+            }
+            composable(Routes.EXPENSE_STATS) {
+                ExpenseStatsScreen(onBack = back, modifier = secondaryModifier)
             }
         }
     }

@@ -37,6 +37,9 @@ object Routes {
     const val PLAN_SETUP = "plan_setup"
     const val NOTIFY_SETTINGS = "notify_settings"
 
+    const val MILEAGE = "mileage"
+    const val EXPENSE_STATS = "expense_stats"
+
     const val OWNER_TYPE_ARG = "ownerType"
     const val OWNER_ID_ARG = "ownerId"
     const val START_ARG = "start"

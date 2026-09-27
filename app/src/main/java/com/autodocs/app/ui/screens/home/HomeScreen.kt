@@ -57,6 +57,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import com.autodocs.app.AutoDocsApp
 import com.autodocs.app.data.entity.Car
 import com.autodocs.app.data.entity.FuelType
@@ -92,6 +93,7 @@ fun HomeScreen(
     onOpenPlan: () -> Unit,
     onOpenRule: (Long) -> Unit,
     onOpenPassport: (Long) -> Unit,
+    onOpenMileage: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
@@ -111,6 +113,7 @@ fun HomeScreen(
             onUpdateMileage = { viewModel.updateMileage(car.id, it) },
             passportSides = passportSides,
             onOpenPassport = { onOpenPassport(car.id) },
+            onOpenMileage = onOpenMileage,
             upcoming = {
                 UpcomingBlock(plan = plan, onOpenPlan = onOpenPlan, onOpenRule = onOpenRule)
             },
@@ -168,6 +171,7 @@ private fun CarHome(
     modifier: Modifier = Modifier,
     passportSides: Int = 0,
     onOpenPassport: () -> Unit = {},
+    onOpenMileage: () -> Unit = {},
     upcoming: @Composable () -> Unit = {}
 ) {
     var showArchiveConfirm by remember { mutableStateOf(false) }
@@ -244,6 +248,16 @@ private fun CarHome(
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
+                    }
+                    if (car.mileage > 0) {
+                        GlassPillButton(onClick = onOpenMileage, modifier = Modifier.padding(end = 8.dp)) {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.ShowChart,
+                                contentDescription = "Історія пробігу",
+                                tint = LinkColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                     GlassPillButton(onClick = { showMileageDialog = true }) {
                         PillText(if (car.mileage > 0) "Оновити" else "Вказати")

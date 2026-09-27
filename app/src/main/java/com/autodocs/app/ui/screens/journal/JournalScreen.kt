@@ -16,6 +16,24 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
+import com.autodocs.app.ui.components.RoundGlassButton
+import com.autodocs.app.ui.components.autoDocsFieldColors
+import com.autodocs.app.ui.screens.stats.ChoiceChips
+import com.autodocs.app.ui.theme.LinkColor
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -57,6 +75,7 @@ fun JournalScreen(
     onOpenRecord: (Long) -> Unit,
     onAddRecord: () -> Unit,
     onAddCar: () -> Unit,
+    onOpenStats: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
@@ -64,6 +83,7 @@ fun JournalScreen(
         factory = JournalViewModelFactory(app.carRepository, app.serviceRepository, app.photoRepository)
     )
     val state by viewModel.state.collectAsState()
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
 
     val car = state.car
     when {
@@ -75,7 +95,7 @@ fun JournalScreen(
             onClick = onAddCar,
             modifier = modifier
         )
-        state.records.isEmpty() -> Column(modifier.fillMaxSize().padding(horizontal = AutoDocsDimens.ScreenPadding)) {
+        state.totalCount == 0 -> Column(modifier.fillMaxSize().padding(horizontal = AutoDocsDimens.ScreenPadding)) {
             ScreenHeader(title = "Журнал", overline = car.name)
             EmptyMessage(
                 title = "Записів ще немає",
@@ -85,6 +105,7 @@ fun JournalScreen(
             )
         }
         else -> {
+            val filter = state.filter
             val groups = state.records.groupBy { utcMillisToLocalDate(it.record.date).withDayOfMonth(1) }
             val totalSpent = state.records.sumOf { it.total() }
             val count = state.records.size.toLong()
@@ -93,14 +114,68 @@ fun JournalScreen(
                 contentPadding = PaddingValues(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                item {
-                    ScreenHeader(title = "Журнал", overline = car.name)
+                item(key = "header") {
+                    ScreenHeader(title = "Журнал", overline = car.name) {
+                        RoundGlassButton(
+                            Icons.Outlined.Search,
+                            "Пошук",
+                            onClick = {
+                                if (searchOpen) viewModel.setQuery("")
+                                searchOpen = !searchOpen
+                            },
+                            tint = if (searchOpen || filter.query.isNotBlank()) Accent else TextPrimary
+                        )
+                        RoundGlassButton(Icons.Outlined.BarChart, "Статистика витрат", onOpenStats)
+                    }
+                }
+                if (searchOpen || filter.query.isNotBlank()) {
+                    item(key = "search") {
+                        SearchField(
+                            query = filter.query,
+                            onQueryChange = viewModel::setQuery,
+                            onClose = { viewModel.setQuery(""); searchOpen = false }
+                        )
+                    }
+                }
+                if (state.years.size >= 2) {
+                    item(key = "years") {
+                        ChoiceChips(
+                            options = listOf<Int?>(null) + state.years,
+                            selected = filter.year,
+                            label = { it?.toString() ?: "Усі роки" },
+                            onSelect = viewModel::setYear
+                        )
+                    }
+                }
+                item(key = "summary") {
                     Text(
-                        "$count ${pluralUk(count, "запис", "записи", "записів")} · витрачено ${formatMoney(totalSpent)} ₴",
+                        (if (filter.isActive) "Знайдено: " else "") +
+                            "$count ${pluralUk(count, "запис", "записи", "записів")} · витрачено ${formatMoney(totalSpent)} ₴",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary,
                         modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
                     )
+                }
+                if (state.records.isEmpty()) {
+                    item(key = "nothing") {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("Нічого не знайдено", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                            Text(
+                                "Скинути пошук і фільтр",
+                                color = LinkColor,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .padding(top = 8.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { viewModel.clearFilter(); searchOpen = false }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
                 groups.forEach { (month, records) ->
                     item(key = "m_$month") {
@@ -122,7 +197,12 @@ fun JournalScreen(
                         }
                     }
                     items(records, key = { it.record.id }) { record ->
-                        RecordCard(record = record, photoCount = state.photoCounts[record.record.id] ?: 0, onClick = { onOpenRecord(record.record.id) })
+                        RecordCard(
+                            record = record,
+                            photoCount = state.photoCounts[record.record.id] ?: 0,
+                            highlighted = filter.matchedItemNames(record),
+                            onClick = { onOpenRecord(record.record.id) }
+                        )
                     }
                 }
             }
@@ -131,7 +211,27 @@ fun JournalScreen(
 }
 
 @Composable
-private fun RecordCard(record: RecordWithItems, photoCount: Int = 0, onClick: () -> Unit) {
+private fun SearchField(query: String, onQueryChange: (String) -> Unit, onClose: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+        placeholder = { Text("Робота, запчастина, СТО, нотатка") },
+        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = TextSecondary) },
+        trailingIcon = {
+            IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "Закрити пошук", tint = TextSecondary) }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(14.dp),
+        colors = autoDocsFieldColors(),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
+    )
+    LaunchedEffect(Unit) { if (query.isEmpty()) runCatching { focus.requestFocus() } }
+}
+
+@Composable
+private fun RecordCard(record: RecordWithItems, photoCount: Int = 0, highlighted: List<String> = emptyList(), onClick: () -> Unit) {
     GlassSurface(
         modifier = Modifier
             .fillMaxWidth()
@@ -163,7 +263,9 @@ private fun RecordCard(record: RecordWithItems, photoCount: Int = 0, onClick: ()
             )
         }
         if (record.items.isNotEmpty()) {
-            val names = record.items.map { it.displayName() }
+            // Знайдені пошуком позиції — першими, щоб було видно, чому запис підійшов.
+            val all = record.items.map { it.displayName() }
+            val names = highlighted + (all - highlighted.toSet())
             val shown = names.take(3).joinToString(", ")
             val rest = names.size - 3
             Text(

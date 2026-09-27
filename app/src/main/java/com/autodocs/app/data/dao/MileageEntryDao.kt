@@ -14,6 +14,15 @@ interface MileageEntryDao {
     @Query("SELECT * FROM mileage_entries WHERE carId = :carId ORDER BY date DESC LIMIT :limit")
     suspend fun recentForCar(carId: Long, limit: Int = 10): List<MileageEntry>
 
+    @Query("SELECT * FROM mileage_entries WHERE carId = :carId ORDER BY date DESC")
+    suspend fun getForCar(carId: Long): List<MileageEntry>
+
+    @Query("SELECT * FROM mileage_entries WHERE id = :id")
+    suspend fun getById(id: Long): MileageEntry?
+
     @Insert
     suspend fun insert(entry: MileageEntry): Long
+
+    @Query("DELETE FROM mileage_entries WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

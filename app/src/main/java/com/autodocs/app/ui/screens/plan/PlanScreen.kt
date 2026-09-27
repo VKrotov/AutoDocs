@@ -66,6 +66,7 @@ fun PlanScreen(
     onAddRule: () -> Unit,
     onOpenSetup: () -> Unit,
     onAddCar: () -> Unit,
+    onOpenMileage: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
@@ -96,7 +97,7 @@ fun PlanScreen(
                 RoundGlassButton(Icons.Filled.Add, "Додати пункт регламенту", onAddRule, tint = Accent)
             }
 
-            MileageCard(overview)
+            MileageCard(overview, onClick = onOpenMileage)
 
             if (overview.isEmpty) {
                 EmptyRules(onSeed = { viewModel.seedTemplate { if (it > 0) onOpenSetup() } }, onAddRule = onAddRule)
@@ -137,8 +138,14 @@ fun PlanScreen(
 }
 
 @Composable
-private fun MileageCard(overview: PlanOverview) {
-    GlassSurface(modifier = Modifier.fillMaxWidth(), contentPadding = 18.dp) {
+private fun MileageCard(overview: PlanOverview, onClick: () -> Unit) {
+    GlassSurface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AutoDocsDimens.CardRadiusOuter))
+            .clickable(onClickLabel = "Відкрити історію пробігу", onClick = onClick),
+        contentPadding = 18.dp
+    ) {
         val rate = overview.kmPerDay
         val estimated = rate != null && overview.currentMileage != overview.car.mileage
         Text(
@@ -172,6 +179,13 @@ private fun MileageCard(overview: PlanOverview) {
             style = MaterialTheme.typography.bodyMedium,
             fontSize = 13.sp,
             color = TextSecondary
+        )
+        Text(
+            "Графік та історія пробігу",
+            color = LinkColor,
+            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 10.dp)
         )
     }
 }

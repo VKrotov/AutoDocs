@@ -27,6 +27,9 @@ interface ServiceRecordDao {
     @Query("SELECT * FROM service_records WHERE id = :id")
     suspend fun getWithItems(id: Long): RecordWithItems?
 
+    @Query("SELECT * FROM service_records WHERE carId = :carId ORDER BY date DESC")
+    suspend fun getForCar(carId: Long): List<ServiceRecord>
+
     @Query("SELECT * FROM service_records WHERE id = :id")
     suspend fun getById(id: Long): ServiceRecord?
 

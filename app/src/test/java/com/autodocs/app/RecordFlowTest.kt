@@ -50,7 +50,9 @@ class RecordFlowTest {
         rule.onNode(hasSetTextAction() and hasText("Що робили", substring = true)).performTextInput(name)
         scrollTo(hasText("Зберегти запис"))
         rule.onNodeWithText("Зберегти запис").performClick()
-        rule.waitUntil(5000) { !exists(hasText("Новий запис")) }
+        // Чекаємо саме закриття форми: заголовок «Новий запис» у довгій формі вже прокручений
+        // за екран (LazyColumn його не тримає), тож на нього орієнтуватись не можна.
+        rule.waitUntil(5000) { !exists(hasText("Зберегти запис")) }
     }
 
     @Test fun addRecords_thenHomeTabWorks() {

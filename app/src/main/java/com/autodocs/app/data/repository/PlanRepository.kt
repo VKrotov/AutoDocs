@@ -12,7 +12,9 @@ import com.autodocs.app.data.plan.DueStatus
 import com.autodocs.app.data.plan.MaintenanceCalculator
 import com.autodocs.app.data.plan.MaintenanceTemplate
 import com.autodocs.app.data.plan.MileageForecast
-import com.autodocs.app.data.plan.MileagePoint
+import com.autodocs.app.data.stats.MileageHistory
+import com.autodocs.app.data.stats.MileageHistoryPoint
+import com.autodocs.app.data.stats.MileageSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import java.time.Instant
@@ -98,13 +100,14 @@ class PlanRepository(private val db: AppDatabase) {
         val now = today()
         val names = workTypes.associate { it.id to it.name }
 
-        // F09: точки пробігу з усіх джерел.
+        // F09: точки пробігу з усіх джерел (з точним часом — щоб відмітки одного дня йшли по порядку).
         val points = buildList {
-            mileage.forEach { add(MileagePoint(timestampToLocalDate(it.date), it.mileage)) }
-            records.forEach { add(MileagePoint(utcToLocalDate(it.record.date), it.record.mileage)) }
-            if (car.mileage > 0) add(MileagePoint(timestampToLocalDate(car.mileageUpdatedAt), car.mileage))
+            mileage.forEach { add(MileageHistoryPoint(timestampToLocalDate(it.date), it.mileage, MileageSource.ENTRY, it.id, at = it.date)) }
+            records.forEach { add(MileageHistoryPoint(utcToLocalDate(it.record.date), it.record.mileage, MileageSource.RECORD, it.record.id, at = it.record.date)) }
+            if (car.mileage > 0) add(MileageHistoryPoint(timestampToLocalDate(car.mileageUpdatedAt), car.mileage, MileageSource.CAR, car.id, at = car.mileageUpdatedAt))
         }
-        val rate = MileageForecast.kmPerDay(points, now)
+        // Помилкові відмітки (пробіг «стрибає» назад чи нереально вгору) не псують прогноз.
+        val rate = MileageForecast.kmPerDay(MileageHistory.consistentOf(points), now)
         val current = MileageForecast.estimateCurrent(car.mileage, timestampToLocalDate(car.mileageUpdatedAt), rate, now)
 
         val plans = rules.map { rule ->
