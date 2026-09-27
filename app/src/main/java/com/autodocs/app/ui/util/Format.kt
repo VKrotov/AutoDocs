@@ -141,3 +141,11 @@ fun formatShortDate(date: LocalDate): String = date.format(shortDateFormatter)
 
 /** «12 вересня 2026» для LocalDate. */
 fun formatLongDate(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("d MMMM yyyy", UkLocale))
+
+/** Скільки лишилось до кінця дії документа: «сьогодні», «12 днів», «≈ 8 міс», «−3 дні». */
+fun formatDaysLeft(days: Long): String = when {
+    days == 0L -> "сьогодні"
+    days in 1..60 -> formatDaysSigned(days)
+    days > 60 -> "≈ ${Math.round(days / 30.4)} міс"
+    else -> formatDaysSigned(days)
+}

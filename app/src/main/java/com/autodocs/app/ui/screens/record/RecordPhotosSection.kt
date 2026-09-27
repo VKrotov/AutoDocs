@@ -29,7 +29,10 @@ import com.autodocs.app.ui.theme.Accent
 import com.autodocs.app.ui.theme.StatusSoon
 import com.autodocs.app.ui.theme.TextSecondary
 
-/** F05/F25: фото й скани (чеки, акти) у формі запису — до 5 шт. */
+/**
+ * F05/F25: фото й скани (чеки, акти) у формі запису — до 5 шт.
+ * Етап 9: той самий блок у формі документа (фото поліса) — з власними підписами й переглядом.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RecordPhotosSection(
@@ -38,15 +41,18 @@ fun RecordPhotosSection(
     importing: Boolean,
     message: String?,
     sources: PhotoSources,
-    onRemove: (String) -> Unit
+    onRemove: (String) -> Unit,
+    title: String = "Фото й документи",
+    emptyHint: String = "Чек, акт виконаних робіт, фото деталей — скануй документ або додай фото",
+    onOpen: (String) -> Unit = {}
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionLabel("Фото й документи · ${photos.size}/${PhotoRepository.MAX_PER_RECORD}", Modifier.padding(top = 8.dp))
+        SectionLabel("$title · ${photos.size}/${PhotoRepository.MAX_PER_RECORD}", Modifier.padding(top = 8.dp))
         if (photos.isNotEmpty()) {
-            PhotoStrip(uris = photos, onOpen = {}, onRemove = { index -> onRemove(photos[index]) })
+            PhotoStrip(uris = photos, onOpen = { index -> onOpen(photos[index]) }, onRemove = { index -> onRemove(photos[index]) })
         } else {
             Text(
-                "Чек, акт виконаних робіт, фото деталей — скануй документ або додай фото",
+                emptyHint,
                 style = MaterialTheme.typography.bodyMedium,
                 fontSize = 13.sp,
                 color = TextSecondary,

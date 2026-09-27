@@ -65,11 +65,27 @@ class BackupRoundTripTest {
         dao.insertRules(listOf(MaintenanceRule(id = 1, carId = 2, workTypeId = 5, intervalKm = 10000, intervalMonths = null, lastDoneMileage = 350000, lastDoneDate = null)))
         dao.insertMileage(listOf(MileageEntry(id = 4, carId = 2, mileage = 358248, date = 40)))
         dao.insertPhotos(listOf(Photo(id = 6, ownerType = PhotoOwnerType.SERVICE_RECORD, ownerId = 3, kind = PhotoKind.RECORD_PHOTO, uri = Uri.fromFile(recPhoto).toString(), createdAt = 50)))
+        // Схема v2 (етап 9): документ із фото поліса, разовий план, закритий записом, СТО, шини.
+        val policy = File(PhotoStorage.photosDir(context), "doc_1.jpg").apply { writeBytes(byteArrayOf(7, 7, 7)) }
+        dao.insertDocuments(listOf(
+            CarDocument(id = 11, carId = 2, type = DocumentType.OSAGO, number = "EP-123", company = "ТАС",
+                validFrom = 1790380800000, validUntil = 1821830400000, price = 1450.5, notes = "е-поліс", createdAt = 60),
+            CarDocument(id = 12, carId = 2, type = DocumentType.OTHER, title = "Довіреність", validUntil = 1821830400000, createdAt = 61)
+        ))
+        dao.insertPhotos(listOf(Photo(id = 13, ownerType = PhotoOwnerType.CAR_DOCUMENT, ownerId = 11, kind = PhotoKind.SCAN, uri = Uri.fromFile(policy).toString(), createdAt = 62)))
+        dao.insertTasks(listOf(
+            PlannedTask(id = 21, carId = 2, title = "Шарові опори", dueDate = 1798761600000, dueMileage = 365000, notes = "стукіт справа", createdAt = 70),
+            PlannedTask(id = 22, carId = 2, title = "Заміна масла двигуна", doneAt = 1790380800000, doneRecordId = 3, createdAt = 71)
+        ))
+        dao.insertStations(listOf(Station(id = 31, name = "СТО \"Шевченка\"", phone = "+380501112233", address = "вул. Шевченка, 1", createdAt = 80)))
+        dao.insertTireSets(listOf(TireSet(id = 41, carId = 2, name = "Зима", season = TireSeason.WINTER, brand = "Nokian", size = "205/55 R16", year = 2021, createdAt = 90)))
+        dao.insertTireSwaps(listOf(TireSwap(id = 51, carId = 2, tireSetId = 41, date = 1790380800000, mileage = 358000)))
         photo
     }
 
     private suspend fun snapshot() = with(db.backupDao()) {
-        listOf(allCars(), allWorkTypes(), allRecords(), allRecordItems(), allRules(), allMileage(), allPhotos())
+        listOf(allCars(), allWorkTypes(), allRecords(), allRecordItems(), allRules(), allMileage(), allPhotos(),
+            allDocuments(), allTasks(), allStations(), allTireSets(), allTireSwaps())
     }
 
     @Test fun roundTrip_restoresEverythingExactly() = runBlocking {
@@ -82,7 +98,7 @@ class BackupRoundTripTest {
         assertEquals(2, exported.cars)
         assertEquals("Мій Passat", exported.activeCarName)
         assertEquals(1, exported.records)
-        assertEquals(2, exported.photos)
+        assertEquals(3, exported.photos)
 
         // Змінюємо дані й видаляємо фото — відновлення має все повернути.
         db.backupDao().clearRecordItems()
@@ -100,6 +116,45 @@ class BackupRoundTripTest {
         assertArrayEquals(photoBytes, photo.readBytes())
         assertFalse(File(PhotoStorage.photosDir(context), "junk.jpg").exists())
         assertTrue(File(PhotoStorage.photosDir(context), "rec_1.jpg").exists())
+        assertTrue(File(PhotoStorage.photosDir(context), "doc_1.jpg").exists())
+    }
+
+    /** Копія зі старої версії (схема v1, без нових масивів) відновлюється в v2: нові таблиці — порожні. */
+    @Test fun v1Backup_restoresIntoV2() = runBlocking {
+        seed()
+        val good = ByteArrayOutputStream().also { manager.export(it) }.toByteArray()
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { z ->
+            ZipInputStream(ByteArrayInputStream(good)).use { zin ->
+                while (true) {
+                    val e = zin.nextEntry ?: break
+                    z.putNextEntry(ZipEntry(e.name))
+                    if (e.name == "data.json") {
+                        val root = org.json.JSONObject(zin.readBytes().toString(Charsets.UTF_8))
+                        listOf("carDocuments", "plannedTasks", "stations", "tireSets", "tireSwaps").forEach { root.remove(it) }
+                        // Фото документа в старій версії не існувало.
+                        val photos = root.getJSONArray("photos")
+                        val kept = org.json.JSONArray()
+                        for (i in 0 until photos.length()) {
+                            val p = photos.getJSONObject(i)
+                            if (p.getString("ownerType") != "CAR_DOCUMENT") kept.put(p)
+                        }
+                        root.put("photos", kept).put("schemaVersion", 1).put("appVersion", "0.8.0")
+                        z.write(root.toString().toByteArray())
+                    } else zin.copyTo(z)
+                    z.closeEntry()
+                }
+            }
+        }
+        val summary = manager.restore(ByteArrayInputStream(out.toByteArray()))
+        assertEquals(1, summary.schemaVersion)
+        val dao = db.backupDao()
+        assertEquals(2, dao.allCars().size)
+        assertEquals(1, dao.allRecords().size)
+        assertTrue(dao.allDocuments().isEmpty())
+        assertTrue(dao.allTasks().isEmpty())
+        assertTrue(dao.allTireSets().isEmpty())
+        assertEquals(listOf(PhotoOwnerType.SERVICE_RECORD), dao.allPhotos().map { it.ownerType })
     }
 
     @Test fun garbageFile_isRejected_andDataUntouched() = runBlocking {

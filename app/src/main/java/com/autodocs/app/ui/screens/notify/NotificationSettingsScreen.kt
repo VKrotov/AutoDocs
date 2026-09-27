@@ -58,7 +58,7 @@ import com.autodocs.app.ui.theme.TextPrimary
 import com.autodocs.app.ui.theme.TextSecondary
 import com.autodocs.app.ui.util.formatKm
 
-/** F10: налаштування нагадувань про ТО. */
+/** F10: налаштування нагадувань про ТО, разові плани й документи (етап 9). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NotificationSettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -120,7 +120,7 @@ fun NotificationSettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier
         GlassSurface(modifier = Modifier.fillMaxWidth(), cornerRadius = AutoDocsDimens.CardRadiusInner, contentPadding = 14.dp) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Нагадувати про ТО", style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
+                    Text("Нагадувати про ТО й документи", style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
                     Text(
                         "Перевірка раз на день о ${s.hour}:00",
                         style = MaterialTheme.typography.bodyMedium,
@@ -137,9 +137,12 @@ fun NotificationSettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier
         }
 
         Column(modifier = Modifier.alpha(if (s.enabled) 1f else 0.5f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionLabel("Попереджати за", Modifier.padding(top = 4.dp))
+            SectionLabel("ТО й разові плани — попереджати за", Modifier.padding(top = 4.dp))
             ChipRow(listOf(7, 14, 30), s.daysBefore, { "$it днів" }) { v -> viewModel.update { it.copy(daysBefore = v) } }
             ChipRow(listOf(500, 1_000, 2_000), s.kmBefore, { "${formatKm(it)} км" }) { v -> viewModel.update { it.copy(kmBefore = v) } }
+
+            SectionLabel("Страховка й техогляд — попереджати за", Modifier.padding(top = 4.dp))
+            ChipRow(listOf(14, 30, 60), s.docDaysBefore, { "$it днів" }) { v -> viewModel.update { it.copy(docDaysBefore = v) } }
 
             SectionLabel("Нагадати внести пробіг, якщо не оновлювався", Modifier.padding(top = 4.dp))
             ChipRow(listOf(0, 7, 14, 30), s.mileageDays, { if (it == 0) "Не нагадувати" else "$it днів" }) { v ->
@@ -152,7 +155,8 @@ fun NotificationSettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier
 
         Text(
             "Про той самий пункт нагадаю не частіше, ніж раз на тиждень, доки його не зробиш і не внесеш у журнал. " +
-                "Пункти без відмітки «коли робили» не нагадуються — їх видно в «Плані ТО».",
+                "Пункти без відмітки «коли робили» не нагадуються — їх видно в «Плані ТО». " +
+                "Прострочений документ нагадує ще місяць; продовжений поліс (новий документ того ж виду) закриває нагадування.",
             style = MaterialTheme.typography.bodyMedium,
             fontSize = 13.sp,
             color = TextSecondary,

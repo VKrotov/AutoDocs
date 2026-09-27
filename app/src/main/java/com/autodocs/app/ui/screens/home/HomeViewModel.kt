@@ -9,6 +9,9 @@ import com.autodocs.app.data.repository.PlanOverview
 import com.autodocs.app.data.entity.PhotoKind
 import com.autodocs.app.data.entity.PhotoOwnerType
 import com.autodocs.app.data.repository.PhotoRepository
+import com.autodocs.app.data.repository.DocumentRepository
+import com.autodocs.app.data.plan.DocumentDeadlines
+import com.autodocs.app.data.plan.DocumentDue
 import com.autodocs.app.data.repository.PlanRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,7 +26,9 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     private val repository: CarRepository,
     planRepository: PlanRepository,
-    photoRepository: PhotoRepository
+    photoRepository: PhotoRepository,
+    documentRepository: DocumentRepository,
+    private val warnDays: () -> Int
 ) : ViewModel() {
     val activeCar: StateFlow<Car?> = repository.observeActiveCar()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -43,6 +48,14 @@ class HomeViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
+    /** Етап 9: поточні документи (найтерміновіший — першим) для рядка «Страховка й документи». */
+    val documents: StateFlow<List<DocumentDue>> = repository.observeActiveCar()
+        .flatMapLatest { car ->
+            if (car == null) flowOf(emptyList())
+            else documentRepository.observeDue(car.id, warnDays).map { DocumentDeadlines.current(it) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun updateMileage(carId: Long, mileage: Int) {
         viewModelScope.launch { repository.updateMileage(carId, mileage) }
     }
@@ -55,8 +68,11 @@ class HomeViewModel(
 class HomeViewModelFactory(
     private val repository: CarRepository,
     private val planRepository: PlanRepository,
-    private val photoRepository: PhotoRepository
+    private val photoRepository: PhotoRepository,
+    private val documentRepository: DocumentRepository,
+    private val warnDays: () -> Int
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T = HomeViewModel(repository, planRepository, photoRepository) as T
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        HomeViewModel(repository, planRepository, photoRepository, documentRepository, warnDays) as T
 }

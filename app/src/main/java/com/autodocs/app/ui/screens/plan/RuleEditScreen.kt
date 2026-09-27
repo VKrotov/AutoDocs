@@ -204,7 +204,7 @@ fun RuleEditScreen(ruleId: Long?, onDone: () -> Unit, onBack: () -> Unit, modifi
 }
 
 @Composable
-private fun NumberField(value: String, onChange: (String) -> Unit, label: String, suffix: String, modifier: Modifier) {
+internal fun NumberField(value: String, onChange: (String) -> Unit, label: String, suffix: String, modifier: Modifier) {
     OutlinedTextField(
         value = value,
         onValueChange = onChange,

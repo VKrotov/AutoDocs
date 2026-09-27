@@ -1,9 +1,11 @@
 package com.autodocs.app.data
 
 import androidx.room.TypeConverter
+import com.autodocs.app.data.entity.DocumentType
 import com.autodocs.app.data.entity.FuelType
 import com.autodocs.app.data.entity.PhotoKind
 import com.autodocs.app.data.entity.PhotoOwnerType
+import com.autodocs.app.data.entity.TireSeason
 import com.autodocs.app.data.entity.TransmissionType
 import com.autodocs.app.data.entity.WorkItemCategory
 
@@ -38,4 +40,16 @@ class Converters {
 
     @TypeConverter
     fun toPhotoKind(value: String): PhotoKind = PhotoKind.valueOf(value)
+
+    @TypeConverter
+    fun fromDocumentType(value: DocumentType): String = value.name
+
+    @TypeConverter
+    fun toDocumentType(value: String): DocumentType = DocumentType.valueOf(value)
+
+    @TypeConverter
+    fun fromTireSeason(value: TireSeason): String = value.name
+
+    @TypeConverter
+    fun toTireSeason(value: String): TireSeason = TireSeason.valueOf(value)
 }

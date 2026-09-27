@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.autodocs.app.data.AppDatabase
 import com.autodocs.app.data.entity.Car
 import com.autodocs.app.data.entity.MaintenanceRule
+import com.autodocs.app.data.entity.PlannedTask
 import com.autodocs.app.data.entity.WorkItemCategory
 import com.autodocs.app.data.entity.WorkType
 import com.autodocs.app.data.plan.DoneMark
@@ -12,6 +13,8 @@ import com.autodocs.app.data.plan.DueStatus
 import com.autodocs.app.data.plan.MaintenanceCalculator
 import com.autodocs.app.data.plan.MaintenanceTemplate
 import com.autodocs.app.data.plan.MileageForecast
+import com.autodocs.app.data.plan.OneOffPlanner
+import com.autodocs.app.data.plan.TaskPlan
 import com.autodocs.app.data.stats.MileageHistory
 import com.autodocs.app.data.stats.MileageHistoryPoint
 import com.autodocs.app.data.stats.MileageSource
@@ -38,9 +41,14 @@ data class PlanOverview(
     val currentMileage: Int,
     val kmPerDay: Double?,
     val active: List<RulePlan>,
-    val inactive: List<RulePlan>
+    val inactive: List<RulePlan>,
+    /** Етап 9: відкриті разові плани (відсортовані, див. [OneOffPlanner.sort]). */
+    val tasks: List<TaskPlan> = emptyList(),
+    /** Виконані разові плани — новіші першими. */
+    val doneTasks: List<PlannedTask> = emptyList()
 ) {
     val unknownCount: Int get() = active.count { it.plan.isUnknown }
+    /** Регламент порожній (разові плани на це не впливають — у них своя секція). */
     val isEmpty: Boolean get() = active.isEmpty() && inactive.isEmpty()
 
     /**
@@ -58,8 +66,41 @@ data class PlanOverview(
         )
         .take(limit)
 
+    /**
+     * «Найближче ТО» на головній разом із разовими планами, у яких відомий термін.
+     * Той самий порядок, що й у [nearest].
+     */
+    fun upcoming(limit: Int = HOME_LIMIT): List<UpcomingEntry> {
+        val rules = active.filter { it.hasKnownDue }.map { UpcomingEntry.Rule(it) }
+        val oneOff = tasks.filter { it.hasKnownDue }.map { UpcomingEntry.Task(it) }
+        return (rules + oneOff)
+            .sortedWith(
+                compareBy<UpcomingEntry> { it.plan.status.ordinal }
+                    .thenBy { it.plan.remainingDays ?: Long.MAX_VALUE }
+                    .thenBy { it.plan.remainingKm ?: Int.MAX_VALUE }
+                    .thenBy { it.name }
+            )
+            .take(limit)
+    }
+
     companion object {
         const val HOME_LIMIT = 5
+    }
+}
+
+/** Рядок блоку «Найближче ТО»: пункт регламенту або разовий план. */
+sealed interface UpcomingEntry {
+    val name: String
+    val plan: DuePlan
+
+    data class Rule(val item: RulePlan) : UpcomingEntry {
+        override val name: String get() = item.name
+        override val plan: DuePlan get() = item.plan
+    }
+
+    data class Task(val item: TaskPlan) : UpcomingEntry {
+        override val name: String get() = item.task.title
+        override val plan: DuePlan get() = item.plan
     }
 }
 
@@ -81,6 +122,7 @@ class PlanRepository(private val db: AppDatabase) {
     private val workTypeDao = db.workTypeDao()
     private val recordDao = db.serviceRecordDao()
     private val mileageDao = db.mileageEntryDao()
+    private val taskDao = db.plannedTaskDao()
 
     companion object {
         fun utcToLocalDate(millis: Long): LocalDate = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
@@ -95,8 +137,9 @@ class PlanRepository(private val db: AppDatabase) {
         ruleDao.observeForCar(car.id),
         workTypeDao.observeAll(),
         recordDao.observeWithItemsForCar(car.id),
-        mileageDao.observeForCar(car.id)
-    ) { rules, workTypes, records, mileage ->
+        mileageDao.observeForCar(car.id),
+        taskDao.observeForCar(car.id)
+    ) { rules, workTypes, records, mileage, tasks ->
         val now = today()
         val names = workTypes.associate { it.id to it.name }
 
@@ -144,7 +187,12 @@ class PlanRepository(private val db: AppDatabase) {
             currentMileage = current,
             kmPerDay = rate,
             active = sorted.filter { it.rule.isActive },
-            inactive = sorted.filterNot { it.rule.isActive }
+            inactive = sorted.filterNot { it.rule.isActive },
+            tasks = OneOffPlanner.sort(
+                tasks.filter { it.doneAt == null }.map { TaskPlan(it, OneOffPlanner.compute(it, current, rate, now)) }
+            ),
+            doneTasks = tasks.filter { it.doneAt != null }
+                .sortedWith(compareByDescending<PlannedTask> { it.doneAt }.thenByDescending { it.id })
         )
     }
 
@@ -196,4 +244,26 @@ class PlanRepository(private val db: AppDatabase) {
     }
 
     suspend fun countRulesForWorkType(workTypeId: Long): Int = ruleDao.countForWorkType(workTypeId)
+
+    // ---- Разові плани (етап 9) ----
+
+    suspend fun getTask(id: Long): PlannedTask? = taskDao.getById(id)
+
+    /** Зберегти новий (id == 0) або оновити наявний план. Повертає id. */
+    suspend fun saveTask(task: PlannedTask): Long =
+        if (task.id == 0L) taskDao.insert(task) else { taskDao.update(task); task.id }
+
+    suspend fun deleteTask(id: Long) = taskDao.deleteById(id)
+
+    /** Позначити виконаним: [doneAtUtc] — дата (millis опівночі UTC), [recordId] — запис журналу, якщо є. */
+    suspend fun markTaskDone(id: Long, doneAtUtc: Long, recordId: Long? = null) {
+        val task = taskDao.getById(id) ?: return
+        taskDao.update(task.copy(doneAt = doneAtUtc, doneRecordId = recordId))
+    }
+
+    /** Повернути виконаний план у відкриті. */
+    suspend fun reopenTask(id: Long) {
+        val task = taskDao.getById(id) ?: return
+        taskDao.update(task.copy(doneAt = null, doneRecordId = null))
+    }
 }

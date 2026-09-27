@@ -41,7 +41,9 @@ class BackupException(message: String, cause: Throwable? = null) : Exception(mes
  *
  * Формат архіву:
  *  - `data.json` — { format, schemaVersion, appVersion, exportedAt, photoFiles[], cars[], workTypes[],
- *    serviceRecords[], serviceRecordItems[], maintenanceRules[], mileageEntries[], photos[] }
+ *    serviceRecords[], serviceRecordItems[], maintenanceRules[], mileageEntries[], photos[],
+ *    (v2) carDocuments[], plannedTasks[], stations[], tireSets[], tireSwaps[] }
+ *  Копія v1 відновлюється і в v2: нових масивів у ній немає — відповідні таблиці будуть порожні.
  *  - `photos/<ім'я>` — файли фото. У JSON фото посилаються відносним шляхом `photos/<ім'я>`.
  *
  * Відновлення — ПОВНА заміна даних (одна транзакція Room), id зберігаються як були,
@@ -81,6 +83,11 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
         val rules = dao.allRules()
         val mileage = dao.allMileage()
         val photos = dao.allPhotos()
+        val documents = dao.allDocuments()
+        val tasks = dao.allTasks()
+        val stations = dao.allStations()
+        val tireSets = dao.allTireSets()
+        val tireSwaps = dao.allTireSwaps()
 
         // Збираємо фото: однаковий URI → один файл в архіві.
         val pathByUri = LinkedHashMap<String, String>()
@@ -133,6 +140,11 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
             .put("maintenanceRules", rules.toJsonArray(BackupJson::ruleToJson))
             .put("mileageEntries", mileage.toJsonArray(BackupJson::mileageToJson))
             .put("photos", photosJson)
+            .put("carDocuments", documents.toJsonArray(BackupJson::documentToJson))
+            .put("plannedTasks", tasks.toJsonArray(BackupJson::taskToJson))
+            .put("stations", stations.toJsonArray(BackupJson::stationToJson))
+            .put("tireSets", tireSets.toJsonArray(BackupJson::tireSetToJson))
+            .put("tireSwaps", tireSwaps.toJsonArray(BackupJson::tireSwapToJson))
 
         ZipOutputStream(output.buffered()).use { zip ->
             zip.putNextEntry(ZipEntry(DATA_ENTRY))
@@ -235,10 +247,20 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
             val photos = r.optJSONArray("photos").mapObjects { o ->
                 resolve(BackupJson.optPhotoPath(o))?.let { BackupJson.photoFromJson(o, it) }
             }.filterNotNull()
+            val documents = r.optJSONArray("carDocuments").mapObjects(BackupJson::documentFromJson)
+            val tasks = r.optJSONArray("plannedTasks").mapObjects(BackupJson::taskFromJson)
+            val stations = r.optJSONArray("stations").mapObjects(BackupJson::stationFromJson)
+            val tireSets = r.optJSONArray("tireSets").mapObjects(BackupJson::tireSetFromJson)
+            val tireSwaps = r.optJSONArray("tireSwaps").mapObjects(BackupJson::tireSwapFromJson)
 
             // 3. Повна заміна даних однією транзакцією: якщо щось не так — нічого не зміниться.
             try {
                 db.withTransaction {
+                    dao.clearTireSwaps()
+                    dao.clearTireSets()
+                    dao.clearTasks()
+                    dao.clearDocuments()
+                    dao.clearStations()
                     dao.clearRecordItems()
                     dao.clearRules()
                     dao.clearMileage()
@@ -254,6 +276,11 @@ class BackupManager(private val context: Context, private val db: AppDatabase) {
                     dao.insertRules(rules)
                     dao.insertMileage(mileage)
                     dao.insertPhotos(photos)
+                    dao.insertDocuments(documents)
+                    dao.insertTasks(tasks)
+                    dao.insertStations(stations)
+                    dao.insertTireSets(tireSets)
+                    dao.insertTireSwaps(tireSwaps)
                 }
             } catch (e: Exception) {
                 throw BackupException("Файл копії пошкоджений: дані не узгоджуються. Поточні дані не змінено.", e)

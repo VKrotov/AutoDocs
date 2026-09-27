@@ -23,7 +23,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.autodocs.app.AutoDocsApp
+import com.autodocs.app.data.entity.DocumentType
 import com.autodocs.app.data.entity.PhotoOwnerType
+import com.autodocs.app.ui.screens.documents.DocumentFormScreen
+import com.autodocs.app.ui.screens.documents.DocumentsScreen
+import com.autodocs.app.ui.screens.plan.TaskEditScreen
 import com.autodocs.app.data.notify.MaintenanceNotifier
 import com.autodocs.app.ui.screens.backup.BackupScreen
 import com.autodocs.app.ui.screens.car.ArchiveScreen
@@ -104,6 +108,8 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
                     onOpenRule = { id -> navController.navigate(Routes.planRuleEdit(id)) },
                     onOpenPassport = { carId -> navController.navigate(Routes.techPassport(carId)) },
                     onOpenMileage = { navController.navigate(Routes.MILEAGE) },
+                    onOpenDocuments = { navController.navigate(Routes.DOCUMENTS) },
+                    onOpenTask = { id -> navController.navigate(Routes.taskEdit(id)) },
                     modifier = tabModifier
                 )
             }
@@ -123,6 +129,8 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
                     onOpenSetup = { navController.navigate(Routes.PLAN_SETUP) },
                     onAddCar = { navController.navigate(Routes.CAR_FORM_ADD) },
                     onOpenMileage = { navController.navigate(Routes.MILEAGE) },
+                    onAddTask = { navController.navigate(Routes.TASK_NEW) },
+                    onOpenTask = { id -> navController.navigate(Routes.taskEdit(id)) },
                     modifier = tabModifier
                 )
             }
@@ -154,9 +162,13 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
                 ArchiveScreen(onBack = back, modifier = secondaryModifier)
             }
 
-            composable(Routes.RECORD_FORM_ADD) {
+            composable(
+                route = Routes.RECORD_FORM_ADD_PATTERN,
+                arguments = listOf(navArgument(Routes.TASK_ARG) { type = NavType.LongType; defaultValue = -1L })
+            ) { entry ->
                 RecordFormScreen(
                     recordIdToEdit = null,
+                    fromTaskId = entry.arguments?.getLong(Routes.TASK_ARG)?.takeIf { it > 0 },
                     onSaved = {
                         // Після нового запису — у журнал, щоб одразу його бачити.
                         // Спершу ПРИБИРАЄМО форму зі стеку: інакше saveState "запам'ятовував" її
@@ -263,6 +275,83 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
             composable(Routes.EXPENSE_STATS) {
                 ExpenseStatsScreen(onBack = back, modifier = secondaryModifier)
             }
+
+            // ---- Етап 9 ----
+            composable(Routes.DOCUMENTS) {
+                DocumentsScreen(
+                    onBack = back,
+                    onAdd = { type -> navController.navigate(Routes.documentNew(type?.name)) },
+                    onOpen = { id -> navController.navigate(Routes.documentEdit(id)) },
+                    onOpenPassport = { carId -> navController.navigate(Routes.techPassport(carId)) },
+                    modifier = secondaryModifier
+                )
+            }
+            composable(
+                route = Routes.DOCUMENT_NEW_PATTERN,
+                arguments = listOf(
+                    navArgument(Routes.DOC_TYPE_ARG) { type = NavType.StringType; defaultValue = "" },
+                    navArgument(Routes.RENEW_ARG) { type = NavType.LongType; defaultValue = -1L }
+                )
+            ) { entry ->
+                val typeName = entry.arguments?.getString(Routes.DOC_TYPE_ARG).orEmpty()
+                DocumentFormScreen(
+                    docId = null,
+                    presetType = DocumentType.entries.firstOrNull { it.name == typeName },
+                    renewFromId = entry.arguments?.getLong(Routes.RENEW_ARG)?.takeIf { it > 0 },
+                    onDone = back,
+                    onBack = back,
+                    onRenew = {},
+                    onOpenPhoto = { _, _ -> },
+                    modifier = secondaryModifier
+                )
+            }
+            composable(
+                route = Routes.DOCUMENT_EDIT_PATTERN,
+                arguments = listOf(navArgument(Routes.DOC_ID_ARG) { type = NavType.LongType })
+            ) { entry ->
+                DocumentFormScreen(
+                    docId = entry.arguments?.getLong(Routes.DOC_ID_ARG),
+                    presetType = null,
+                    renewFromId = null,
+                    onDone = back,
+                    onBack = back,
+                    onRenew = { id ->
+                        // Замість старого документа — форма нового поліса (назад → до списку).
+                        navController.popBackStack()
+                        navController.navigate(Routes.documentNew(renewFrom = id))
+                    },
+                    onOpenPhoto = { id, index ->
+                        navController.navigate(Routes.photoViewer(PhotoOwnerType.CAR_DOCUMENT.name, id, index))
+                    },
+                    modifier = secondaryModifier
+                )
+            }
+            composable(Routes.TASK_NEW) {
+                TaskEditScreen(
+                    taskId = null,
+                    onDone = back,
+                    onBack = back,
+                    onLogToJournal = {},
+                    onOpenRecord = {},
+                    modifier = secondaryModifier
+                )
+            }
+            composable(
+                route = Routes.TASK_EDIT_PATTERN,
+                arguments = listOf(navArgument(Routes.TASK_ID_ARG) { type = NavType.LongType })
+            ) { entry ->
+                TaskEditScreen(
+                    taskId = entry.arguments?.getLong(Routes.TASK_ID_ARG),
+                    onDone = back,
+                    onBack = back,
+                    onLogToJournal = { id ->
+                        navController.popBackStack()
+                        navController.navigate(Routes.recordFormForTask(id))
+                    },
+                    onOpenRecord = { id -> navController.navigate(Routes.recordDetail(id)) },
+                    modifier = secondaryModifier
+                )
+            }
         }
     }
 
@@ -275,6 +364,10 @@ fun AutoDocsNavHost(openRequest: String? = null, onOpenRequestHandled: () -> Uni
         when (openRequest) {
             MaintenanceNotifier.OPEN_PLAN -> openTab(Destination.PLAN)
             MaintenanceNotifier.OPEN_HOME -> openTab(Destination.HOME)
+            MaintenanceNotifier.OPEN_DOCUMENTS -> {
+                openTab(Destination.HOME)
+                navController.navigate(Routes.DOCUMENTS)
+            }
             else -> return@LaunchedEffect
         }
         onOpenRequestHandled()

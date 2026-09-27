@@ -18,7 +18,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.EditCalendar
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -29,11 +33,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -67,6 +73,8 @@ fun PlanScreen(
     onOpenSetup: () -> Unit,
     onAddCar: () -> Unit,
     onOpenMileage: () -> Unit = {},
+    onAddTask: () -> Unit = {},
+    onOpenTask: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
@@ -94,10 +102,16 @@ fun PlanScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             ScreenHeader(title = "План ТО", overline = car.name) {
-                RoundGlassButton(Icons.Filled.Add, "Додати пункт регламенту", onAddRule, tint = Accent)
+                AddMenuButton(onAddRule = onAddRule, onAddTask = onAddTask)
             }
 
             MileageCard(overview, onClick = onOpenMileage)
+
+            val hasTasks = overview.tasks.isNotEmpty() || overview.doneTasks.isNotEmpty()
+            if (hasTasks) {
+                TasksSection(overview, onAddTask = onAddTask, onOpenTask = onOpenTask)
+                SectionLabel("Регламент", Modifier.padding(top = 8.dp))
+            }
 
             if (overview.isEmpty) {
                 EmptyRules(onSeed = { viewModel.seedTemplate { if (it > 0) onOpenSetup() } }, onAddRule = onAddRule)
@@ -132,6 +146,7 @@ fun PlanScreen(
                     modifier = Modifier.padding(horizontal = 4.dp)
                 )
             }
+            if (!hasTasks) OneOffHint(onClick = onAddTask)
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -261,5 +276,101 @@ private fun CenterMessage(title: String, text: String, button: String, onClick: 
                 Text(button)
             }
         }
+    }
+}
+
+/** «+» у шапці: пункт регламенту або разовий план. */
+@Composable
+private fun AddMenuButton(onAddRule: () -> Unit, onAddTask: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        RoundGlassButton(Icons.Filled.Add, "Додати в план", { expanded = true }, tint = Accent)
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Пункт регламенту") },
+                leadingIcon = { Icon(Icons.Outlined.Build, contentDescription = null) },
+                onClick = { expanded = false; onAddRule() }
+            )
+            DropdownMenuItem(
+                text = { Text("Разовий план") },
+                leadingIcon = { Icon(Icons.Outlined.Flag, contentDescription = null) },
+                onClick = { expanded = false; onAddTask() }
+            )
+        }
+    }
+}
+
+/** Етап 9: секція «Разові плани» над регламентом. */
+@Composable
+private fun TasksSection(overview: PlanOverview, onAddTask: () -> Unit, onOpenTask: (Long) -> Unit) {
+    var showDone by rememberSaveable { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        SectionLabel("Разові плани", Modifier.weight(1f))
+        Text(
+            "Додати",
+            color = LinkColor,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .padding(bottom = 4.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClickLabel = "Додати разовий план", onClick = onAddTask)
+                .padding(horizontal = 4.dp, vertical = 4.dp)
+        )
+    }
+    if (overview.tasks.isNotEmpty()) {
+        StatusList(overview.tasks) { item -> TaskPlanRow(item, onClick = { onOpenTask(item.task.id) }) }
+    } else {
+        Text(
+            "Відкритих немає",
+            style = MaterialTheme.typography.bodyMedium,
+            fontSize = 13.sp,
+            color = TextSecondary,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+    }
+    if (overview.doneTasks.isNotEmpty()) {
+        Text(
+            if (showDone) "Сховати виконані" else "Виконані · ${overview.doneTasks.size}",
+            color = LinkColor,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .clickable { showDone = !showDone }
+                .padding(horizontal = 4.dp, vertical = 6.dp)
+        )
+        if (showDone) {
+            StatusList(overview.doneTasks) { task -> DoneTaskRow(task, onClick = { onOpenTask(task.id) }) }
+        }
+    }
+}
+
+/** Підказка, коли разових планів ще немає. */
+@Composable
+private fun OneOffHint(onClick: () -> Unit) {
+    val shape = RoundedCornerShape(AutoDocsDimens.CardRadiusInner)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .border(1.dp, Color(0x17FFFFFF), shape)
+            .clickable(onClickLabel = "Додати разовий план", onClick = onClick)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Outlined.Flag, contentDescription = null, tint = TextSecondary)
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Разовий план", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = TextPrimary)
+            Text(
+                "Зробити щось один раз до дати або пробігу — напр. «Поміняти шарові до зими»",
+                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 13.sp,
+                color = TextSecondary
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text("Додати", color = LinkColor, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
     }
 }

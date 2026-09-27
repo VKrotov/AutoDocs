@@ -1,13 +1,19 @@
 package com.autodocs.app.data.notify
 
+import com.autodocs.app.data.entity.displayName
+import com.autodocs.app.data.plan.DocumentDeadlines
+import com.autodocs.app.data.plan.DocumentDue
 import com.autodocs.app.data.plan.DuePlan
 import com.autodocs.app.data.plan.DueStatus
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
-/** Пункт регламенту для перевірки нагадувань. */
-data class ReminderItem(val ruleId: Long, val name: String, val plan: DuePlan)
+/**
+ * Пункт для перевірки нагадувань: правило регламенту або (етап 9) разовий план.
+ * [key] — ключ у стані антиспаму: «r<id>» для регламенту, «t<id>» для разового плану.
+ */
+data class ReminderItem(val ruleId: Long, val name: String, val plan: DuePlan, val key: String = "r$ruleId")
 
 /** Що надіслати і який стан антиспаму запам'ятати. */
 data class ReminderDecision(
@@ -16,7 +22,9 @@ data class ReminderDecision(
     /** Нагадування внести пробіг або null. */
     val mileageLine: String?,
     /** Новий стан: ключ → "ВИД|epochDay" останнього сповіщення. */
-    val newState: Map<String, String>
+    val newState: Map<String, String>,
+    /** Етап 9: рядки про документи («Автоцивілка — закінчується через 12 днів»). */
+    val documentLines: List<String> = emptyList()
 )
 
 /**
@@ -38,13 +46,14 @@ object ReminderPlanner {
         settings: NotifySettings,
         state: Map<String, String>,
         today: LocalDate,
-        force: Boolean = false
+        force: Boolean = false,
+        documents: List<DocumentDue> = emptyList()
     ): ReminderDecision {
         val newState = state.toMutableMap()
         val lines = mutableListOf<String>()
 
         for (item in items) {
-            val key = "r${item.ruleId}"
+            val key = item.key
             val kind = dueKind(item.plan, settings)
             if (kind == null) {
                 newState.remove(key)
@@ -74,7 +83,43 @@ object ReminderPlanner {
         } else {
             newState.remove(MILEAGE_KEY)
         }
-        return ReminderDecision(lines, mileageLine, newState)
+        // Документи: лише поточні (замінені новим полісом не нагадують), прострочені — ще місяць.
+        val documentLines = mutableListOf<String>()
+        for (d in documents.sortedBy { it.daysLeft }) {
+            val key = "d${d.doc.id}"
+            val kind = if (d.isCurrent) documentKind(d, settings) else null
+            if (kind == null) {
+                newState.remove(key)
+                continue
+            }
+            if (force || shouldRepeat(state[key], kind, today)) {
+                documentLines += documentLine(d)
+                newState[key] = "$kind|${today.toEpochDay()}"
+            }
+        }
+        return ReminderDecision(lines, mileageLine, newState, documentLines)
+    }
+
+    /** "OVERDUE" / "SOON" / null для документа. */
+    fun documentKind(d: DocumentDue, s: NotifySettings): String? = when {
+        d.daysLeft < -DocumentDeadlines.OVERDUE_REMIND_DAYS -> null
+        d.daysLeft < 0 -> "OVERDUE"
+        d.daysLeft <= s.docDaysBefore -> "SOON"
+        else -> null
+    }
+
+    fun documentLine(d: DocumentDue): String {
+        val name = d.doc.displayName()
+        val days = d.daysLeft
+        return when {
+            days < 0 -> {
+                val ago = -days
+                "$name — термін дії закінчився" + if (ago == 1L) " учора" else " $ago ${plural(ago, "день", "дні", "днів")} тому"
+            }
+            days == 0L -> "$name — сьогодні останній день дії"
+            days == 1L -> "$name — діє до завтра включно"
+            else -> "$name — закінчується через $days ${plural(days, "день", "дні", "днів")}"
+        }
     }
 
     /** "OVERDUE" / "SOON" / null — чи варто зараз нагадувати про пункт. */

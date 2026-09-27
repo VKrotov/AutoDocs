@@ -4,7 +4,8 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-enum class PhotoOwnerType { CAR, SERVICE_RECORD }
+/** CAR_DOCUMENT — поліс/техогляд (схема v2). */
+enum class PhotoOwnerType { CAR, SERVICE_RECORD, CAR_DOCUMENT }
 
 enum class PhotoKind { CAR_PHOTO, TECH_PASSPORT_FRONT, TECH_PASSPORT_BACK, RECORD_PHOTO, SCAN }
 

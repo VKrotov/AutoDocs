@@ -13,7 +13,9 @@ data class NotifySettings(
     /** Нагадати внести пробіг, якщо він не оновлювався стільки днів (0 — не нагадувати). */
     val mileageDays: Int = 14,
     /** Година дня для щоденної перевірки. */
-    val hour: Int = 10
+    val hour: Int = 10,
+    /** Документи (страховка, техогляд): попереджати за стільки днів до кінця дії. */
+    val docDaysBefore: Int = 30
 ) {
     companion object {
         private const val K_ENABLED = "notify_enabled"
@@ -21,6 +23,7 @@ data class NotifySettings(
         private const val K_KM = "notify_km_before"
         private const val K_MILEAGE = "notify_mileage_days"
         private const val K_HOUR = "notify_hour"
+        private const val K_DOC_DAYS = "notify_doc_days_before"
 
         fun load(context: Context): NotifySettings {
             val p = AppPrefs.get(context)
@@ -30,7 +33,8 @@ data class NotifySettings(
                 daysBefore = p.getInt(K_DAYS, d.daysBefore),
                 kmBefore = p.getInt(K_KM, d.kmBefore),
                 mileageDays = p.getInt(K_MILEAGE, d.mileageDays),
-                hour = p.getInt(K_HOUR, d.hour)
+                hour = p.getInt(K_HOUR, d.hour),
+                docDaysBefore = p.getInt(K_DOC_DAYS, d.docDaysBefore)
             )
         }
 
@@ -41,6 +45,7 @@ data class NotifySettings(
                 .putInt(K_KM, s.kmBefore)
                 .putInt(K_MILEAGE, s.mileageDays)
                 .putInt(K_HOUR, s.hour)
+                .putInt(K_DOC_DAYS, s.docDaysBefore)
                 .apply()
         }
     }

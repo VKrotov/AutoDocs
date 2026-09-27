@@ -46,6 +46,27 @@ object Routes {
     const val PHOTO_VIEWER_PATTERN = "photos/{$OWNER_TYPE_ARG}/{$OWNER_ID_ARG}/{$START_ARG}"
     const val TECH_PASSPORT_PATTERN = "passport/{$CAR_ID_ARG}"
 
+    // ---- Етап 9: документи й разові плани ----
+    const val DOCUMENTS = "documents"
+    const val DOC_ID_ARG = "docId"
+    const val DOC_TYPE_ARG = "type"
+    const val RENEW_ARG = "renew"
+    const val DOCUMENT_NEW_PATTERN = "document/new?$DOC_TYPE_ARG={$DOC_TYPE_ARG}&$RENEW_ARG={$RENEW_ARG}"
+    const val DOCUMENT_EDIT_PATTERN = "document/edit/{$DOC_ID_ARG}"
+    fun documentNew(type: String? = null, renewFrom: Long? = null): String =
+        "document/new?$DOC_TYPE_ARG=${type.orEmpty()}&$RENEW_ARG=${renewFrom ?: -1}"
+    fun documentEdit(docId: Long) = "document/edit/$docId"
+
+    const val TASK_ID_ARG = "taskId"
+    const val TASK_NEW = "task/new"
+    const val TASK_EDIT_PATTERN = "task/edit/{$TASK_ID_ARG}"
+    fun taskEdit(taskId: Long) = "task/edit/$taskId"
+
+    /** Новий запис журналу, що закриває разовий план. Без аргументу — звичайний новий запис. */
+    const val TASK_ARG = "task"
+    const val RECORD_FORM_ADD_PATTERN = "record_form/add?$TASK_ARG={$TASK_ARG}"
+    fun recordFormForTask(taskId: Long) = "record_form/add?$TASK_ARG=$taskId"
+
     fun photoViewer(ownerType: String, ownerId: Long, start: Int) = "photos/$ownerType/$ownerId/$start"
     fun techPassport(carId: Long) = "passport/$carId"
 

@@ -7,6 +7,7 @@ import com.autodocs.app.data.backup.BackupManager
 import com.autodocs.app.data.notify.MaintenanceNotifier
 import com.autodocs.app.data.notify.ReminderScheduler
 import com.autodocs.app.data.repository.CarRepository
+import com.autodocs.app.data.repository.DocumentRepository
 import com.autodocs.app.data.repository.MileageRepository
 import com.autodocs.app.data.repository.PhotoRepository
 import com.autodocs.app.data.repository.PlanRepository
@@ -36,6 +37,8 @@ class AutoDocsApp : Application() {
     val planRepository: PlanRepository by lazy { PlanRepository(database) }
 
     val mileageRepository: MileageRepository by lazy { MileageRepository(database) }
+
+    val documentRepository: DocumentRepository by lazy { DocumentRepository(database, photoRepository) }
 
     override fun onCreate() {
         super.onCreate()

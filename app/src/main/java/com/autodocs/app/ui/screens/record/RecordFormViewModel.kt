@@ -14,6 +14,7 @@ import com.autodocs.app.data.repository.CarRepository
 import com.autodocs.app.data.repository.ItemInput
 import com.autodocs.app.data.repository.PhotoRef
 import com.autodocs.app.data.repository.PhotoRepository
+import com.autodocs.app.data.repository.PlanRepository
 import com.autodocs.app.data.repository.ServiceRepository
 import com.autodocs.app.ui.util.parseMoney
 import com.autodocs.app.ui.util.todayUtcMillis
@@ -75,8 +76,13 @@ class RecordFormViewModel(
     private val app: Application,
     private val carRepository: CarRepository,
     private val serviceRepository: ServiceRepository,
-    private val photoRepository: PhotoRepository
+    private val photoRepository: PhotoRepository,
+    /** Етап 9: для запису, що закриває разовий план. */
+    private val planRepository: PlanRepository? = null
 ) : ViewModel() {
+
+    /** Разовий план, який закриє цей запис після збереження (етап 9). */
+    private var fromTaskId: Long? = null
 
     /** Фото, скопійовані в застосунок у цій формі, але ще не збережені в БД. */
     private val pendingFiles = mutableSetOf<String>()
@@ -102,7 +108,8 @@ class RecordFormViewModel(
     private var nextKey = 1L
     private var initialized = false
 
-    fun init(recordId: Long?) {
+    /** [taskId] — новий запис для разового плану: позиція вже заповнена його назвою. */
+    fun init(recordId: Long?, taskId: Long? = null) {
         if (initialized) return
         initialized = true
         viewModelScope.launch {
@@ -112,12 +119,17 @@ class RecordFormViewModel(
                     _state.update { it.copy(isLoading = false, noActiveCar = true) }
                     return@launch
                 }
+                val task = taskId?.let { planRepository?.getTask(it) }
+                fromTaskId = task?.id
                 _state.update {
                     it.copy(
                         carId = car.id,
                         carName = car.name,
                         mileageText = if (car.mileage > 0) car.mileage.toString() else "",
-                        items = listOf(newDraft(WorkItemCategory.ROBOTA)),
+                        items = listOf(
+                            if (task != null) newDraft(WorkItemCategory.ROBOTA).copy(name = task.title)
+                            else newDraft(WorkItemCategory.ROBOTA)
+                        ),
                         isLoading = false
                     )
                 }
@@ -216,6 +228,7 @@ class RecordFormViewModel(
             )
             photoRepository.replaceFor(PhotoOwnerType.SERVICE_RECORD, id, _state.value.photos)
             pendingFiles.clear()
+            fromTaskId?.let { taskId -> planRepository?.markTaskDone(taskId, s.date, id) }
             _state.update { it.copy(isSaving = false, isSaved = true) }
         }
     }
@@ -275,9 +288,10 @@ class RecordFormViewModelFactory(
     private val app: Application,
     private val carRepository: CarRepository,
     private val serviceRepository: ServiceRepository,
-    private val photoRepository: PhotoRepository
+    private val photoRepository: PhotoRepository,
+    private val planRepository: PlanRepository? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        RecordFormViewModel(app, carRepository, serviceRepository, photoRepository) as T
+        RecordFormViewModel(app, carRepository, serviceRepository, photoRepository, planRepository) as T
 }

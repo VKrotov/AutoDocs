@@ -29,16 +29,18 @@ object MaintenanceNotifier {
     const val EXTRA_OPEN = "open"
     const val OPEN_PLAN = "plan"
     const val OPEN_HOME = "home"
+    const val OPEN_DOCUMENTS = "documents"
     private const val ID_MAINTENANCE = 1001
     private const val ID_MILEAGE = 1002
     private const val ID_INFO = 1003
+    private const val ID_DOCUMENTS = 1004
     private const val KEY_STATE = "notify_state"
 
     enum class Result { SENT, NOTHING, DISABLED, NO_PERMISSION, NO_CAR }
 
     fun createChannel(context: Context) {
         val channel = NotificationChannel(CHANNEL_ID, "Нагадування про ТО", NotificationManager.IMPORTANCE_DEFAULT).apply {
-            description = "Наближення терміну ТО, прострочене обслуговування, нагадування внести пробіг"
+            description = "Наближення терміну ТО і разових планів, кінець дії страховки й техогляду, нагадування внести пробіг"
         }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
@@ -59,17 +61,20 @@ object MaintenanceNotifier {
         val app = context.applicationContext as AutoDocsApp
         val car = app.carRepository.observeActiveCar().first() ?: return Result.NO_CAR
         val overview = app.planRepository.observePlan(car) { today }.first()
+        val documents = app.documentRepository.observeDue(car.id, { settings.docDaysBefore }) { today }.first()
 
         val prefs = AppPrefs.get(context)
         val state = readState(prefs.getString(KEY_STATE, null))
         val decision = ReminderPlanner.decide(
-            items = overview.active.map { ReminderItem(it.rule.id, it.name, it.plan) },
+            items = overview.active.map { ReminderItem(it.rule.id, it.name, it.plan) } +
+                overview.tasks.map { ReminderItem(it.task.id, it.task.title, it.plan, key = "t${it.task.id}") },
             carMileage = car.mileage,
             mileageUpdated = Instant.ofEpochMilli(car.mileageUpdatedAt).atZone(ZoneId.systemDefault()).toLocalDate(),
             settings = settings,
             state = state,
             today = today,
-            force = force
+            force = force,
+            documents = documents
         )
         if (!force) prefs.edit().putString(KEY_STATE, writeState(decision.newState)).apply()
 
@@ -79,6 +84,13 @@ object MaintenanceNotifier {
             else "ТО: ${decision.lines.size} пункти потребують уваги"
             val style = NotificationCompat.InboxStyle().also { st -> decision.lines.forEach { st.addLine(it) } }
             post(context, ID_MAINTENANCE, title, decision.lines.first(), style, OPEN_PLAN)
+            sent = true
+        }
+        if (decision.documentLines.isNotEmpty()) {
+            val title = if (decision.documentLines.size == 1) "Документи: ${car.name}"
+            else "Документи: ${decision.documentLines.size} потребують уваги"
+            val style = NotificationCompat.InboxStyle().also { st -> decision.documentLines.forEach { st.addLine(it) } }
+            post(context, ID_DOCUMENTS, title, decision.documentLines.first(), style, OPEN_DOCUMENTS)
             sent = true
         }
         decision.mileageLine?.let {

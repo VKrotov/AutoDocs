@@ -84,12 +84,14 @@ fun RecordFormScreen(
     recordIdToEdit: Long?,
     onSaved: () -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Етап 9: запис закриває разовий план — позиція вже заповнена. */
+    fromTaskId: Long? = null
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
     val viewModel: RecordFormViewModel = viewModel(
-        key = "record_form_${recordIdToEdit ?: "new"}",
-        factory = RecordFormViewModelFactory(app, app.carRepository, app.serviceRepository, app.photoRepository)
+        key = "record_form_${recordIdToEdit ?: "new"}_${fromTaskId ?: ""}",
+        factory = RecordFormViewModelFactory(app, app.carRepository, app.serviceRepository, app.photoRepository, app.planRepository)
     )
     val state by viewModel.state.collectAsState()
     val workTypes by viewModel.workTypes.collectAsState()
@@ -100,7 +102,7 @@ fun RecordFormScreen(
         onError = viewModel::onPhotoError
     )
 
-    LaunchedEffect(recordIdToEdit) { viewModel.init(recordIdToEdit) }
+    LaunchedEffect(recordIdToEdit) { viewModel.init(recordIdToEdit, fromTaskId) }
     LaunchedEffect(state.isSaved, state.noActiveCar) {
         // Подія «збережено» спрацьовує рівно один раз, навіть якщо екран відтворено знову.
         if ((state.isSaved || state.noActiveCar) && viewModel.consumeFinishEvent()) onSaved()

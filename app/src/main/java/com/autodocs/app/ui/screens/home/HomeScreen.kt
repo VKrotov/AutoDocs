@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -64,7 +65,16 @@ import com.autodocs.app.data.entity.FuelType
 import com.autodocs.app.data.entity.TransmissionType
 import com.autodocs.app.data.repository.PlanOverview
 import com.autodocs.app.ui.components.CarPhoto
-import com.autodocs.app.ui.screens.plan.RulePlanList
+import com.autodocs.app.data.entity.displayName
+import com.autodocs.app.data.notify.NotifySettings
+import com.autodocs.app.data.plan.DocumentDue
+import com.autodocs.app.data.plan.DueStatus
+import com.autodocs.app.data.repository.UpcomingEntry
+import com.autodocs.app.ui.screens.plan.RulePlanRow
+import com.autodocs.app.ui.screens.plan.StatusList
+import com.autodocs.app.ui.screens.plan.TaskPlanRow
+import com.autodocs.app.ui.util.formatDaysLeft
+import com.autodocs.app.ui.util.formatShortDate
 import com.autodocs.app.ui.components.GlassPillButton
 import com.autodocs.app.ui.components.GlassSurface
 import com.autodocs.app.ui.components.PillText
@@ -94,13 +104,21 @@ fun HomeScreen(
     onOpenRule: (Long) -> Unit,
     onOpenPassport: (Long) -> Unit,
     onOpenMileage: () -> Unit = {},
+    onOpenDocuments: () -> Unit = {},
+    onOpenTask: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val app = LocalContext.current.applicationContext as AutoDocsApp
-    val viewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(app.carRepository, app.planRepository, app.photoRepository))
+    val viewModel: HomeViewModel = viewModel(
+        factory = HomeViewModelFactory(
+            app.carRepository, app.planRepository, app.photoRepository, app.documentRepository,
+            warnDays = { NotifySettings.load(app).docDaysBefore }
+        )
+    )
     val activeCar by viewModel.activeCar.collectAsState()
     val plan by viewModel.plan.collectAsState()
     val passportSides by viewModel.passportSides.collectAsState()
+    val documents by viewModel.documents.collectAsState()
 
     val car = activeCar
     if (car == null) {
@@ -114,8 +132,10 @@ fun HomeScreen(
             passportSides = passportSides,
             onOpenPassport = { onOpenPassport(car.id) },
             onOpenMileage = onOpenMileage,
+            documents = documents,
+            onOpenDocuments = onOpenDocuments,
             upcoming = {
-                UpcomingBlock(plan = plan, onOpenPlan = onOpenPlan, onOpenRule = onOpenRule)
+                UpcomingBlock(plan = plan, onOpenPlan = onOpenPlan, onOpenRule = onOpenRule, onOpenTask = onOpenTask)
             },
             modifier = modifier
         )
@@ -172,6 +192,8 @@ private fun CarHome(
     passportSides: Int = 0,
     onOpenPassport: () -> Unit = {},
     onOpenMileage: () -> Unit = {},
+    documents: List<DocumentDue> = emptyList(),
+    onOpenDocuments: () -> Unit = {},
     upcoming: @Composable () -> Unit = {}
 ) {
     var showArchiveConfirm by remember { mutableStateOf(false) }
@@ -283,6 +305,9 @@ private fun CarHome(
                         fontWeight = if (passportSides == 2) FontWeight.Normal else FontWeight.SemiBold
                     )
                 }
+
+                // Етап 9: страховка й інші документи з терміном — найтерміновіший.
+                DocumentsLine(documents = documents, onClick = onOpenDocuments)
 
                 val missing = car.missingFields()
                 if (missing.isNotEmpty()) {
@@ -449,9 +474,14 @@ private fun VinRow(vin: String) {
 private fun isMileageStale(updatedAt: Long): Boolean =
     System.currentTimeMillis() - updatedAt > 14L * 24 * 60 * 60 * 1000
 
-/** F11: «Найближче ТО» під карткою авто — як у фінальному дизайні. */
+/** F11: «Найближче ТО» під карткою авто — як у фінальному дизайні (+ разові плани, етап 9). */
 @Composable
-private fun UpcomingBlock(plan: PlanOverview?, onOpenPlan: () -> Unit, onOpenRule: (Long) -> Unit) {
+private fun UpcomingBlock(
+    plan: PlanOverview?,
+    onOpenPlan: () -> Unit,
+    onOpenRule: (Long) -> Unit,
+    onOpenTask: (Long) -> Unit = {}
+) {
     if (plan == null) return
     Spacer(Modifier.height(20.dp))
     Row(
@@ -475,20 +505,15 @@ private fun UpcomingBlock(plan: PlanOverview?, onOpenPlan: () -> Unit, onOpenRul
     }
     Spacer(Modifier.height(10.dp))
     // Прострочені → скоро → решта; пункти без відмітки («Вказати») — лише в «Плані ТО».
-    val nearest = plan.nearest()
+    val entries = plan.upcoming()
     when {
-        plan.active.isEmpty() -> UpcomingHintCard(
-            title = "Регламент ТО ще не налаштований",
-            action = "Налаштувати в «Плані ТО» — займе хвилину",
-            onClick = onOpenPlan
-        )
-        nearest.isEmpty() -> UpcomingHintCard(
-            title = "Поки нічого рахувати",
-            action = "Вкажи в «Плані ТО», коли робили роботи (${plan.unknownCount})",
-            onClick = onOpenPlan
-        )
-        else -> {
-            RulePlanList(items = nearest, onClick = { onOpenRule(it.rule.id) })
+        entries.isNotEmpty() -> {
+            StatusList(entries) { entry ->
+                when (entry) {
+                    is UpcomingEntry.Rule -> RulePlanRow(entry.item, onClick = { onOpenRule(entry.item.rule.id) })
+                    is UpcomingEntry.Task -> TaskPlanRow(entry.item, onClick = { onOpenTask(entry.item.task.id) })
+                }
+            }
             if (plan.unknownCount > 0) {
                 Text(
                     "Ще ${plan.unknownCount} без відмітки — у «Плані ТО»",
@@ -503,6 +528,51 @@ private fun UpcomingBlock(plan: PlanOverview?, onOpenPlan: () -> Unit, onOpenRul
                 )
             }
         }
+        plan.active.isEmpty() -> UpcomingHintCard(
+            title = "Регламент ТО ще не налаштований",
+            action = "Налаштувати в «Плані ТО» — займе хвилину",
+            onClick = onOpenPlan
+        )
+        else -> UpcomingHintCard(
+            title = "Поки нічого рахувати",
+            action = "Вкажи в «Плані ТО», коли робили роботи (${plan.unknownCount})",
+            onClick = onOpenPlan
+        )
+    }
+}
+
+/** Рядок «Страховка й документи» у картці авто: найтерміновіший документ або «Додати». */
+@Composable
+private fun DocumentsLine(documents: List<DocumentDue>, onClick: () -> Unit) {
+    val top = documents.firstOrNull()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClickLabel = "Відкрити документи", onClick = onClick)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Outlined.Shield, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            if (top == null) "Страховка й документи" else top.doc.displayName(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        val (text, color, bold) = when {
+            top == null -> Triple("Додати", LinkColor, true)
+            top.status == DueStatus.OVERDUE -> Triple("прострочено", StatusOverdue, true)
+            top.status == DueStatus.SOON -> Triple(if (top.daysLeft == 0L) "останній день" else formatDaysLeft(top.daysLeft), StatusSoon, true)
+            else -> Triple("до ${formatShortDate(top.validUntil)}", TextSecondary, false)
+        }
+        Text(
+            text,
+            color = color,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal
+        )
     }
 }
 
