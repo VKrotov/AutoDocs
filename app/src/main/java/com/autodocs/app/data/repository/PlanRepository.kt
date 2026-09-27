@@ -40,7 +40,30 @@ data class PlanOverview(
 ) {
     val unknownCount: Int get() = active.count { it.plan.isUnknown }
     val isEmpty: Boolean get() = active.isEmpty() && inactive.isEmpty()
+
+    /**
+     * «Найближче ТО» на головній: лише пункти з відомим терміном (є відмітка, коли робили,
+     * і з неї вдається порахувати залишок). Пункти «Вказати» / «?» сюди не потрапляють —
+     * вони видно в «Плані ТО». Порядок: прострочені → скоро (жовті) → решта; усередині — хто раніше.
+     */
+    fun nearest(limit: Int = HOME_LIMIT): List<RulePlan> = active
+        .filter { it.hasKnownDue }
+        .sortedWith(
+            compareBy<RulePlan> { it.plan.status.ordinal }
+                .thenBy { it.plan.remainingDays ?: Long.MAX_VALUE }
+                .thenBy { it.plan.remainingKm ?: Int.MAX_VALUE }
+                .thenBy { it.name }
+        )
+        .take(limit)
+
+    companion object {
+        const val HOME_LIMIT = 5
+    }
 }
+
+/** Термін відомий: є відмітка «коли робили» і з неї порахований залишок у км або днях. */
+val RulePlan.hasKnownDue: Boolean
+    get() = !plan.isUnknown && (plan.remainingKm != null || plan.remainingDays != null)
 
 /** Базова (ручна) відмітка «коли робили востаннє» для одного правила. */
 data class Baseline(val ruleId: Long, val mileage: Int?, val dateUtcMillis: Long?)

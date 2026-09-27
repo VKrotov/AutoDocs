@@ -460,21 +460,46 @@ private fun UpcomingBlock(plan: PlanOverview?, onOpenPlan: () -> Unit, onOpenRul
         )
     }
     Spacer(Modifier.height(10.dp))
-    if (plan.active.isEmpty()) {
-        GlassSurface(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AutoDocsDimens.CardRadiusInner)).clickable(onClick = onOpenPlan),
-            cornerRadius = AutoDocsDimens.CardRadiusInner,
-            contentPadding = 14.dp
-        ) {
-            Text("Регламент ТО ще не налаштований", style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
-            Text(
-                "Налаштувати в «Плані ТО» — займе хвилину",
-                style = MaterialTheme.typography.bodyMedium,
-                fontSize = 13.sp,
-                color = LinkColor
-            )
+    // Прострочені → скоро → решта; пункти без відмітки («Вказати») — лише в «Плані ТО».
+    val nearest = plan.nearest()
+    when {
+        plan.active.isEmpty() -> UpcomingHintCard(
+            title = "Регламент ТО ще не налаштований",
+            action = "Налаштувати в «Плані ТО» — займе хвилину",
+            onClick = onOpenPlan
+        )
+        nearest.isEmpty() -> UpcomingHintCard(
+            title = "Поки нічого рахувати",
+            action = "Вкажи в «Плані ТО», коли робили роботи (${plan.unknownCount})",
+            onClick = onOpenPlan
+        )
+        else -> {
+            RulePlanList(items = nearest, onClick = { onOpenRule(it.rule.id) })
+            if (plan.unknownCount > 0) {
+                Text(
+                    "Ще ${plan.unknownCount} без відмітки — у «Плані ТО»",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onOpenPlan)
+                        .padding(horizontal = 4.dp, vertical = 4.dp)
+                )
+            }
         }
-    } else {
-        RulePlanList(items = plan.active.take(4), onClick = { onOpenRule(it.rule.id) })
+    }
+}
+
+@Composable
+private fun UpcomingHintCard(title: String, action: String, onClick: () -> Unit) {
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AutoDocsDimens.CardRadiusInner)).clickable(onClick = onClick),
+        cornerRadius = AutoDocsDimens.CardRadiusInner,
+        contentPadding = 14.dp
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
+        Text(action, style = MaterialTheme.typography.bodyMedium, fontSize = 13.sp, color = LinkColor)
     }
 }
